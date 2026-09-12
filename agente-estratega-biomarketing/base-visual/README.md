@@ -1,9 +1,11 @@
 # Base visual duplicable — plantilla de estrategia
 
-Sacada del diseño real de `BOIS_CANTINA_Propuesta_Posicionamiento_3_Meses.pdf` (colores extraídos
-píxel a píxel, no a ojo): navy `#173E4E`, crema `#F5F1D6`, tarjetas `#FFFCEB` / `#E8F0E8`, acento lima
-`#C8E27D`. Mismo layout de 7 slides (portada, norte estratégico, persona y momentos, activos, pilares,
-sistema mensual, producción), con todas las tarjetas/pastillas con esquinas redondeadas.
+Sacada del diseño real de `BOIS_CANTINA_Propuesta_Posicionamiento_3_Meses.pdf` (14 páginas, colores
+extraídos píxel a píxel, no a ojo): navy `#173E4E`, crema `#F5F1D6`, tarjetas `#FFFCEB` / `#E8F0E8`,
+acento lima `#C8E27D`, y terracota `#B76845` para detalles de "viral"/promociones. Mismo layout de las
+**14 secciones** del original (portada, norte estratégico, persona y momentos, activos, pilares, sistema
+mensual, producción, mes 1, mes 2, mes 3, propiedades y acciones, medición, preguntas de validación y
+cierre), con todas las tarjetas/pastillas con esquinas redondeadas.
 
 **No depende de fotos.** BOIS es un caso aparte que ya tiene su propio material fotográfico; la
 plantilla general no asume que haya fotos disponibles. Los espacios que en el PDF de BOIS ocupaban

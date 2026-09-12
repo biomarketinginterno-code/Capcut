@@ -1,5 +1,5 @@
 {
-  "_notas": "IMPORTANTE: la plantilla ya agrega el punto final (o las comillas de cierre) en estos campos, no se lo pongas vos: slide2.objetivo, slide2.que_si_es, slide3.intro, slide3.momentos[].frase, slide4.activos[].desc, slide5.reparto, slide5.pilares[].desc, slide5.regla, slide6.intro, slide6.placas[].desc, slide7.checklist[]. El resto de los campos de texto si necesita su propia puntuacion.",
+  "_notas": "IMPORTANTE: la plantilla ya agrega el punto final (o las comillas de cierre) en estos campos, no se lo pongas vos: slide2.objetivo, slide2.que_si_es, slide3.intro, slide3.momentos[].frase, slide4.activos[].desc, slide5.reparto, slide5.pilares[].desc, slide5.regla, slide6.intro, slide6.placas[].desc, slide7.checklist[], mes1/mes2/mes3.objetivo, mes1/mes2/mes3.nota, slide11.promociones, slide12.revision, slide14.frase_cierre. El resto de los campos de texto si necesita su propia puntuacion.",
   "marca": "NORA",
   "linea": "INDUMENTARIA",
   "fecha": "12.09.2026",
@@ -173,5 +173,85 @@
       "personas": "clientas reales",
       "sonido": "musica suave, sin hablar a camara"
     }
+  },
+
+  "mes1": {
+    "titulo": "Instalar el territorio",
+    "objetivo": "que cualquiera que vea NORA entienda rapido que ofrece, como se siente y por que vale la pena",
+    "filas": [
+      { "eje": "TALLER", "idea": "El taller NORA", "que": "Manos cosiendo, tela, maquina y primer plano del detalle terminado" },
+      { "eje": "COLECCIÓN", "idea": "Prenda nueva, hecha en el momento", "que": "Corte -> costura -> prenda terminada en el maniqui" },
+      { "eje": "TALLER", "idea": "NORA de cerca", "que": "Textura de tela, costura y detalle que no se ve en la foto de catalogo" },
+      { "eje": "COLECCIÓN / VIRAL", "idea": "Tendencia del mes", "que": "A completar por BioMarketing con una referencia actual adaptable a NORA" },
+      { "eje": "TALLER", "idea": "Detras de una prenda", "que": "Foto lifestyle del proceso: tela + manos + maquina. Copy corto" },
+      { "eje": "COLECCIÓN", "idea": "NORA de esta semana", "que": "Carrusel de 3-4 prendas recientes" }
+    ],
+    "nota": "Resultado buscado del mes 1: instalar taller + coleccion + calidad artesanal como tres motivos claros para elegir NORA"
+  },
+  "mes2": {
+    "titulo": "Construir hábito",
+    "objetivo": "dejar de mostrar solamente prendas y empezar a instalar momentos de uso repetibles",
+    "filas": [
+      { "eje": "CLIENTA REAL", "idea": "NORA en el uso diario", "que": "Persona usando la prenda en su rutina, sin dialogo" },
+      { "eje": "TALLER", "idea": "De la tela a la prenda", "que": "Una prenda en todo su recorrido: corte, costura, terminacion y primera prueba" },
+      { "eje": "CLIENTA REAL", "idea": "Dos prendas que combinan", "que": "Como se usan juntas en un mismo look, manos reales, ritmo suave" },
+      { "eje": "COLECCIÓN / VIRAL", "idea": "Tendencia del mes", "que": "A completar por BioMarketing. La prenda debe seguir viendose artesanal" },
+      { "eje": "COMUNIDAD", "idea": "Una clienta que vuelve", "que": "Testimonio corto de una clienta repetidora" },
+      { "eje": "TALLER", "idea": "No es produccion en serie", "que": "Detalle de confeccion + \"Hecha a mano, una por una\"" }
+    ],
+    "nota": "Meta del mes 2: asociar NORA a una eleccion real: comprar para durar, no para descartar"
+  },
+  "mes3": {
+    "titulo": "Expandir comunidad y recordación",
+    "objetivo": "llevar la marca mas alla de la prenda sin perder el tono artesanal y cercano",
+    "filas": [
+      { "eje": "COMUNIDAD", "idea": "Encuentro con clientas", "que": "Recap de un evento chico o probador abierto en el taller" },
+      { "eje": "COLECCIÓN", "idea": "3 prendas / 1 semana", "que": "Montaje rapido de tres prendas distintas para reforzar variedad" },
+      { "eje": "CLIENTA REAL", "idea": "NORA en la calle", "que": "Clienta usando la prenda caminando por la ciudad" },
+      { "eje": "COLECCIÓN / VIRAL", "idea": "Tendencia del mes", "que": "A completar por BioMarketing con tendencia actual que respete estetica y publico" },
+      { "eje": "TALLER", "idea": "Origen de los materiales", "que": "De donde salen las telas e insumos que usa NORA" },
+      { "eje": "COLECCIÓN", "idea": "Edicion limitada", "que": "Foto de una serie corta + numeracion + por que es limitada" }
+    ],
+    "nota": "Mes 3 prepara la siguiente etapa: duplicar lo que mejor funcione segun metricas, no segun intuicion"
+  },
+
+  "slide11": {
+    "propiedades": [
+      { "titulo": "NORA TALLER", "desc": "Codigo transversal para mostrar el proceso de confeccion en vivo" },
+      { "titulo": "NORA DE HOY", "desc": "Formato que instala la variedad de la coleccion activa" },
+      { "titulo": "NORA CLIENTA", "desc": "Testimonios y uso real de clientas repetidoras" },
+      { "titulo": "NORA EDICIÓN", "desc": "Series limitadas numeradas, con fecha de cierre" },
+      { "titulo": "NORA STUDIO", "desc": "Alianzas con estudios de diseño o fotografia cercanos" },
+      { "titulo": "NORA COLLAB", "desc": "Una alianza local por vez: diseño, arte o produccion textil" }
+    ],
+    "promociones": "puntuales, medibles y con proposito. Evitar descuentos permanentes que bajen la percepcion de valor"
+  },
+
+  "slide12": {
+    "contenido": ["Alcance a no seguidores", "Guardados", "Compartidos", "Visitas al perfil"],
+    "negocio": ["Ventas de coleccion actual", "Ventas de series limitadas", "Ticket promedio", "Repeticion de compra"],
+    "marca": ["Etiquetas / UGC de clientas", "Consultas por prenda puntual", "Participacion en encuentros", "Clientas que vuelven"],
+    "revision": "Mantener lo que funciona, duplicar prendas/formatos ganadores, ajustar precios/series y decidir que propiedades continuan"
+  },
+
+  "slide13": {
+    "preguntas": [
+      "¿Cuales son las prendas mas vendidas hoy?",
+      "¿Que prendas quieren empujar por margen o estrategia?",
+      "¿Cual es el proceso exacto de confeccion que quieren mostrar?",
+      "¿Que porcentaje de ventas es por Instagram y cuanto quieren hacerlo crecer?",
+      "¿Las series limitadas se agotan rapido o sobra stock?",
+      "¿Que tipo de clienta sienten que hoy representa mejor a NORA?",
+      "¿Quieren abrir el taller a visitas o eventos chicos?",
+      "¿Que otra marca o rubro sienten afin para una alianza?",
+      "¿Hasta donde estan dispuestos a usar descuentos o beneficios?",
+      "¿Que material o proveedor es el mas dificil de comunicar bien?",
+      "¿Cual es la mejor foto que tienen hoy de una clienta real usando la ropa?",
+      "En un año: ¿que quieren que diga alguien cuando escucha \"NORA\"?"
+    ]
+  },
+
+  "slide14": {
+    "frase_cierre": "El contenido no debe hacer ruido por hacer ruido. Tiene que hacer que NORA se vea como una marca a la que volves"
   }
 }

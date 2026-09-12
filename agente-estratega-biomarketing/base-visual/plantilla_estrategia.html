@@ -20,6 +20,7 @@
     --color-text:      #2C3A40;  /* texto de cuerpo sobre fondo claro */
     --color-muted:     #6B7A80;  /* texto secundario */
     --color-border:    #E4DCC0;  /* borde sutil de tarjetas claras */
+    --color-highlight: #B76845;  /* detalle calido: viral, promos, alertas */
     --radius-lg: 20px;
     --radius-md: 14px;
     --radius-sm: 999px; /* pastillas / circulos: siempre sin puntas */
@@ -191,6 +192,66 @@
   .check-list{ margin:0; padding-left:18px; font-size:13px; line-height:1.7; color:var(--color-text); }
   .lang-row{ margin-top:18px; font-size:12.5px; }
   .lang-row b{ color:var(--color-primary); }
+
+  /* ---------- Slides Mes 1/2/3: tabla de calendario ---------- */
+  .month-table{ width:100%; border-collapse:separate; border-spacing:0 12px; }
+  .month-table th{
+    text-align:left; font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--color-muted); font-weight:700; padding:0 14px 6px 14px;
+  }
+  .month-table td{ padding:4px 14px; vertical-align:middle; font-size:12.5px; color:var(--color-text); }
+  .piece-tag{
+    display:flex; align-items:center; justify-content:center; width:78px; height:40px;
+    border-radius:var(--radius-md); font-size:11px; font-weight:800;
+    letter-spacing:.05em; text-transform:uppercase;
+  }
+  .piece-tag.reel{ background:var(--color-primary); color:var(--color-on-primary); }
+  .piece-tag.placa{ background:var(--color-card-b); color:var(--color-primary); }
+  .eje-label{ font-weight:800; font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--color-primary); }
+  .eje-label.viral{ color:var(--color-highlight); }
+  .idea-label{ font-weight:700; font-size:13.5px; color:var(--color-primary); font-family:var(--font-body); }
+  .month-note{ font-style:italic; font-size:12px; color:var(--color-muted); margin-top:10px; }
+
+  /* ---------- Slide Propiedades y acciones ---------- */
+  .note-strong{
+    text-align:center; font-weight:700; font-size:13px; color:var(--color-highlight);
+    margin-top:10px;
+  }
+
+  /* ---------- Slide Medicion ---------- */
+  .measure-list{ list-style:none; margin:0; padding:0; }
+  .measure-list li{ display:flex; align-items:center; gap:10px; font-size:13px; margin-bottom:14px; color:var(--color-text); }
+  .measure-dot{ width:8px; height:8px; border-radius:var(--radius-sm); background:var(--color-primary); flex:none; }
+  .card.dark .measure-dot{ background:var(--color-accent); }
+  .card.dark .measure-list li{ color:var(--color-on-primary); }
+  .measure-title{ text-align:center; font-family:var(--font-display); font-size:20px; margin:0 0 18px 0; }
+  .measure-title.on-dark{ color:var(--color-accent); }
+  .measure-title:not(.on-dark){ color:var(--color-primary); }
+
+  /* ---------- Slide Validacion (preguntas) ---------- */
+  .qa-item{ display:flex; gap:14px; align-items:flex-start; margin-bottom:22px; }
+  .qa-num{
+    width:26px; height:26px; border-radius:var(--radius-sm); flex:none;
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-body); font-weight:800; font-size:12px;
+  }
+  .qa-num.dark{ background:var(--color-primary); color:var(--color-on-primary); }
+  .qa-num.accent{ background:var(--color-accent); color:var(--color-primary); }
+  .qa-item p{ margin:0; font-size:13px; color:var(--color-text); line-height:1.4; }
+
+  /* ---------- Slide Cierre ---------- */
+  .closing{
+    background:var(--color-primary); color:var(--color-on-primary); height:100%;
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    text-align:center; padding:60px;
+  }
+  .closing h1{
+    font-family:var(--font-display); font-weight:700; font-size:44px; line-height:1.15;
+    margin:0 0 26px 0;
+  }
+  .closing p{ font-size:15px; max-width:560px; opacity:.9; margin:0 0 40px 0; line-height:1.5; }
+  .closing .eyebrow{ color:var(--color-accent); margin-bottom:8px; }
+  .closing .brand-x{ font-weight:700; font-size:15px; }
 </style>
 </head>
 <body>
@@ -380,6 +441,173 @@
     </div>
   </div>
   <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 7</span></div>
+</section>
+
+<!-- SLIDE 8 - MES 1 -->
+<section class="slide">
+  <div class="topbar"></div>
+  <div class="content">
+    <div class="eyebrow">07 / MES 1</div>
+    <h1 class="slide-title">[Título del mes]</h1>
+    <p class="slide-sub">Objetivo: [Objetivo del mes].</p>
+    <table class="month-table">
+      <tr><th>PIEZA</th><th>EJE</th><th>IDEA</th><th>QUÉ MOSTRAMOS</th></tr>
+      <tr><td><div class="piece-tag reel">REEL</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag reel">REEL</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag reel">REEL</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag reel">REEL</div></td><td><span class="eje-label viral">[EJE VIRAL]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag placa">PLACA</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag placa">PLACA</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+    </table>
+    <p class="month-note">[Nota de cierre del mes].</p>
+  </div>
+  <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 8</span></div>
+</section>
+
+<!-- SLIDE 9 - MES 2 -->
+<section class="slide">
+  <div class="topbar"></div>
+  <div class="content">
+    <div class="eyebrow">08 / MES 2</div>
+    <h1 class="slide-title">[Título del mes]</h1>
+    <p class="slide-sub">Objetivo: [Objetivo del mes].</p>
+    <table class="month-table">
+      <tr><th>PIEZA</th><th>EJE</th><th>IDEA</th><th>QUÉ MOSTRAMOS</th></tr>
+      <tr><td><div class="piece-tag reel">REEL</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag reel">REEL</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag reel">REEL</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag reel">REEL</div></td><td><span class="eje-label viral">[EJE VIRAL]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag placa">PLACA</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag placa">PLACA</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+    </table>
+    <p class="month-note">[Nota de cierre del mes].</p>
+  </div>
+  <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 9</span></div>
+</section>
+
+<!-- SLIDE 10 - MES 3 -->
+<section class="slide">
+  <div class="topbar"></div>
+  <div class="content">
+    <div class="eyebrow">09 / MES 3</div>
+    <h1 class="slide-title">[Título del mes]</h1>
+    <p class="slide-sub">Objetivo: [Objetivo del mes].</p>
+    <table class="month-table">
+      <tr><th>PIEZA</th><th>EJE</th><th>IDEA</th><th>QUÉ MOSTRAMOS</th></tr>
+      <tr><td><div class="piece-tag reel">REEL</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag reel">REEL</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag reel">REEL</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag reel">REEL</div></td><td><span class="eje-label viral">[EJE VIRAL]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag placa">PLACA</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+      <tr><td><div class="piece-tag placa">PLACA</div></td><td><span class="eje-label">[EJE]</span></td><td><span class="idea-label">[IDEA]</span></td><td>[Qué mostramos]</td></tr>
+    </table>
+    <p class="month-note">[Nota de cierre del mes].</p>
+  </div>
+  <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 10</span></div>
+</section>
+
+<!-- SLIDE 11 - PROPIEDADES Y ACCIONES -->
+<section class="slide">
+  <div class="topbar"></div>
+  <div class="content">
+    <div class="eyebrow">10 / PROPIEDADES Y ACCIONES</div>
+    <h1 class="slide-title">Que [MARCA] tenga cosas propias</h1>
+    <p class="slide-sub">No todo debe ser "contenido". Algunas acciones tienen que pasar en la vida real y luego convertirse en comunicación.</p>
+    <div class="grid-3" style="margin-bottom:14px;">
+      <div class="card pillar-card"><h3>[PROPIEDAD 1]</h3><p>[Descripcion de la propiedad 1]</p></div>
+      <div class="card pillar-card"><h3>[PROPIEDAD 2]</h3><p>[Descripcion de la propiedad 2]</p></div>
+      <div class="card pillar-card"><h3>[PROPIEDAD 3]</h3><p>[Descripcion de la propiedad 3]</p></div>
+    </div>
+    <div class="grid-3">
+      <div class="card b pillar-card"><h3>[PROPIEDAD 4]</h3><p>[Descripcion de la propiedad 4]</p></div>
+      <div class="card b pillar-card"><h3>[PROPIEDAD 5]</h3><p>[Descripcion de la propiedad 5]</p></div>
+      <div class="card b pillar-card"><h3>[PROPIEDAD 6]</h3><p>[Descripcion de la propiedad 6]</p></div>
+    </div>
+    <p class="note-strong">PROMOCIONES: [Regla de promociones para esta marca].</p>
+  </div>
+  <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 11</span></div>
+</section>
+
+<!-- SLIDE 12 - MEDICION -->
+<section class="slide">
+  <div class="topbar"></div>
+  <div class="content">
+    <div class="eyebrow">11 / MEDICIÓN</div>
+    <h1 class="slide-title">Qué vamos a mirar</h1>
+    <p class="slide-sub">El objetivo no es "subir contenido". Es entender qué construye deseo, visitas y recurrencia.</p>
+    <div class="grid-3" style="margin-bottom:22px;">
+      <div class="card">
+        <div class="measure-title">CONTENIDO</div>
+        <ul class="measure-list">
+          <li><span class="measure-dot"></span>[Metrica contenido 1]</li>
+          <li><span class="measure-dot"></span>[Metrica contenido 2]</li>
+          <li><span class="measure-dot"></span>[Metrica contenido 3]</li>
+          <li><span class="measure-dot"></span>[Metrica contenido 4]</li>
+        </ul>
+      </div>
+      <div class="card dark">
+        <div class="measure-title on-dark">NEGOCIO</div>
+        <ul class="measure-list">
+          <li><span class="measure-dot"></span>[Metrica negocio 1]</li>
+          <li><span class="measure-dot"></span>[Metrica negocio 2]</li>
+          <li><span class="measure-dot"></span>[Metrica negocio 3]</li>
+          <li><span class="measure-dot"></span>[Metrica negocio 4]</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="measure-title">MARCA</div>
+        <ul class="measure-list">
+          <li><span class="measure-dot"></span>[Metrica marca 1]</li>
+          <li><span class="measure-dot"></span>[Metrica marca 2]</li>
+          <li><span class="measure-dot"></span>[Metrica marca 3]</li>
+          <li><span class="measure-dot"></span>[Metrica marca 4]</li>
+        </ul>
+      </div>
+    </div>
+    <div class="eyebrow" style="margin-bottom:8px;">A LOS 30 / 60 / 90 DÍAS</div>
+    <p style="font-size:13.5px; color:var(--color-text); max-width:900px;">[Que se revisa a 30/60/90 dias].</p>
+  </div>
+  <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 12</span></div>
+</section>
+
+<!-- SLIDE 13 - VALIDACION -->
+<section class="slide">
+  <div class="topbar"></div>
+  <div class="content">
+    <div class="eyebrow">12 / VALIDACIÓN</div>
+    <h1 class="slide-title">Preguntas para la reunión</h1>
+    <p class="slide-sub">Esta propuesta es V1. La reunión se graba, se transcribe y se usa para construir la versión final ejecutable.</p>
+    <div class="grid-2" style="margin-bottom:14px;">
+      <div>
+        <div class="qa-item"><span class="qa-num dark">1</span><p>[Pregunta 1]</p></div>
+        <div class="qa-item"><span class="qa-num dark">2</span><p>[Pregunta 2]</p></div>
+        <div class="qa-item"><span class="qa-num dark">3</span><p>[Pregunta 3]</p></div>
+        <div class="qa-item"><span class="qa-num dark">4</span><p>[Pregunta 4]</p></div>
+        <div class="qa-item"><span class="qa-num dark">5</span><p>[Pregunta 5]</p></div>
+        <div class="qa-item"><span class="qa-num dark">6</span><p>[Pregunta 6]</p></div>
+      </div>
+      <div>
+        <div class="qa-item"><span class="qa-num accent">7</span><p>[Pregunta 7]</p></div>
+        <div class="qa-item"><span class="qa-num accent">8</span><p>[Pregunta 8]</p></div>
+        <div class="qa-item"><span class="qa-num accent">9</span><p>[Pregunta 9]</p></div>
+        <div class="qa-item"><span class="qa-num accent">10</span><p>[Pregunta 10]</p></div>
+        <div class="qa-item"><span class="qa-num accent">11</span><p>[Pregunta 11]</p></div>
+        <div class="qa-item"><span class="qa-num accent">12</span><p>[Pregunta 12]</p></div>
+      </div>
+    </div>
+    <div class="banner-rule">POST REUNIÓN: PROPUESTA V1 &rarr; TRANSCRIPCIÓN &rarr; CORRECCIONES &rarr; ESTRATEGIA V2 EJECUTABLE</div>
+  </div>
+  <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 13</span></div>
+</section>
+
+<!-- SLIDE 14 - CIERRE -->
+<section class="slide">
+  <div class="closing">
+    <div class="eyebrow">PROPUESTA PARA VALIDAR</div>
+    <h1>[Palabra clave 1].<br>[Palabra clave 2].<br>[Palabra clave 3].</h1>
+    <p>[Frase de cierre sobre que debe lograr el contenido de esta marca].</p>
+    <div class="brand-x">[MARCA] &times; BIO MARKETING</div>
+  </div>
 </section>
 
 </body>
