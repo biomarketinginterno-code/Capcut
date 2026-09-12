@@ -1,0 +1,177 @@
+{
+  "_notas": "IMPORTANTE: la plantilla ya agrega el punto final (o las comillas de cierre) en estos campos, no se lo pongas vos: slide2.objetivo, slide2.que_si_es, slide3.intro, slide3.momentos[].frase, slide4.activos[].desc, slide5.reparto, slide5.pilares[].desc, slide5.regla, slide6.intro, slide6.placas[].desc, slide7.checklist[]. El resto de los campos de texto si necesita su propia puntuacion.",
+  "marca": "NORA",
+  "linea": "INDUMENTARIA",
+  "fecha": "12.09.2026",
+  "anio": "2026",
+  "palabras_clave": [
+    "Atemporal",
+    "Femenino",
+    "Artesanal"
+  ],
+  "colores": {
+    "bg": "#F6EFE7",
+    "primary": "#5C2A2A",
+    "accent": "#E3A857",
+    "card_a": "#FDF7F0",
+    "card_b": "#EFE2D6",
+    "on_primary": "#F6EFE7",
+    "border": "#E6D8C6"
+  },
+  "portada": {
+    "pill_a": "COLECCIÓN 60%",
+    "pill_b": "TALLER 30%",
+    "pill_c": "COMUNIDAD",
+    "duracion_meses": "3",
+    "frase_espiritu": "Ropa que se hace a mano y se usa toda la vida."
+  },
+  "slide2": {
+    "objetivo": "NORA no necesita ser la marca mas grande. Necesita ser la mas deseada de su nicho",
+    "hipotesis": "Prendas atemporales, hechas a mano, para quien elige calidad por sobre cantidad.",
+    "aclaracion": "La sofisticacion esta en el material y la confeccion, no en el precio inaccesible.",
+    "que_no_es": "No lujo. No fast fashion",
+    "que_si_es": "Si diseño, calidad y cercania con la clienta"
+  },
+  "slide3": {
+    "intro": "NORA vive del lanzamiento de coleccion al uso diario de la prenda",
+    "stats": [
+      {
+        "titulo": "+28",
+        "desc": "Mujeres que valoran diseño y calidad por sobre precio."
+      },
+      {
+        "titulo": "REPETIDORAS",
+        "desc": "Clientas que ya compraron y vuelven por mas."
+      },
+      {
+        "titulo": "REGALO",
+        "desc": "Buscan una prenda distinta para regalar."
+      },
+      {
+        "titulo": "VALOR",
+        "desc": "Una prenda que dura y se nota que es artesanal."
+      }
+    ],
+    "momentos": [
+      {
+        "que": "Lanzamiento de coleccion",
+        "frase": "Quiero verla antes que se agote"
+      },
+      {
+        "que": "Compra por evento puntual",
+        "frase": "Necesito algo distinto para esa ocasion"
+      },
+      {
+        "que": "Uso diario de la prenda",
+        "frase": "Es mi prenda de todos los dias"
+      }
+    ]
+  },
+  "slide4": {
+    "activos": [
+      {
+        "titulo": "TALLER PROPIO",
+        "desc": "Confeccion artesanal verificable, no tercerizada"
+      },
+      {
+        "titulo": "MATERIALES NOBLES",
+        "desc": "Telas e insumos elegidos por durabilidad y caida"
+      },
+      {
+        "titulo": "PRECIO / CALIDAD",
+        "desc": "Propuesta premium con ticket todavia accesible"
+      },
+      {
+        "titulo": "COMUNIDAD ARMADA",
+        "desc": "Base de clientas repetidoras ya construida"
+      },
+      {
+        "titulo": "DISEÑO PROPIO",
+        "desc": "Patrones y modelos que no se consiguen en otro lado"
+      },
+      {
+        "titulo": "PRODUCCION CHICA",
+        "desc": "Series limitadas que generan urgencia real"
+      }
+    ]
+  },
+  "slide5": {
+    "n_pilares": "6",
+    "reparto": "Coleccion 60% / Taller 30% / Comunidad transversal",
+    "pilares": [
+      {
+        "titulo": "COLECCIÓN",
+        "desc": "Lanzamientos, lookbook, nuevas prendas"
+      },
+      {
+        "titulo": "TALLER",
+        "desc": "Proceso de confeccion, materiales, detalle"
+      },
+      {
+        "titulo": "CLIENTA REAL",
+        "desc": "Como se usa la prenda en el dia a dia"
+      },
+      {
+        "titulo": "COMUNIDAD",
+        "desc": "Clientas repetidoras, testimonios, alianzas"
+      },
+      {
+        "titulo": "ESTÉTICA",
+        "desc": "Fotografia, paleta, styling, moodboard"
+      },
+      {
+        "titulo": "EDICIÓN LIMITADA",
+        "desc": "Series cortas, urgencia, numeracion"
+      }
+    ],
+    "regla": "Viral si, pero nunca a costa de verse masiva o descartable"
+  },
+  "slide6": {
+    "n_piezas": "6",
+    "intro": "Contenido corto, fotografico, con foco en textura y detalle de confeccion",
+    "n_reels": "4",
+    "reels": [
+      {
+        "pilar": "TALLER",
+        "que": "Proceso de confeccion de una prenda puntual."
+      },
+      {
+        "pilar": "COLECCIÓN",
+        "que": "Presentacion de una prenda nueva."
+      },
+      {
+        "pilar": "CLIENTA REAL",
+        "que": "Una clienta usando la prenda en su rutina."
+      },
+      {
+        "pilar": "COLECCIÓN / VIRAL"
+      }
+    ],
+    "n_placas": "2",
+    "placas": [
+      {
+        "desc": "Foto de detalle de tela/costura + copy minimo sobre el material"
+      },
+      {
+        "desc": "Lookbook de una prenda en dos contextos de uso distintos"
+      }
+    ],
+    "tag_a": "COLECCIÓN",
+    "tag_b": "TALLER",
+    "tag_c": "COMUNIDAD"
+  },
+  "slide7": {
+    "checklist": [
+      "3 prendas fotografiadas: detalle, cuerpo completo y contexto de uso",
+      "1 secuencia del proceso de confeccion en el taller",
+      "2 situaciones con clienta real usando la prenda",
+      "Detalles de textura, costura y materiales sin texto encima"
+    ],
+    "lenguaje": {
+      "duracion": "8-15 s",
+      "texto": "minimo",
+      "personas": "clientas reales",
+      "sonido": "musica suave, sin hablar a camara"
+    }
+  }
+}

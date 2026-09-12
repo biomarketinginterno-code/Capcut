@@ -14,41 +14,53 @@ como plus, pero nunca son un requisito.
 
 ## Archivos
 
-- `plantilla_estrategia.html` — la plantilla editable. Todo el color vive en las variables CSS del
-  bloque `:root` al principio del archivo.
-- `plantilla_estrategia_demo_BOIS.pdf` — la plantilla renderizada tal cual, con la paleta de BOIS.
-- `plantilla_estrategia_demo_otra_marca.pdf` — la MISMA plantilla, sin tocar el layout, con una paleta
-  totalmente distinta (borravino/hueso/mostaza) y contenido de otro rubro (indumentaria), para probar
-  que no queda pegada a los colores ni al rubro de BOIS.
+- `plantilla_estrategia.html` — la plantilla. No hace falta tocarla a mano para usarla con un cliente
+  nuevo (ver más abajo); todo el color vive en las variables CSS del bloque `:root` al principio del
+  archivo, por si alguna vez hace falta un ajuste de diseño más de fondo.
+- `datos.ejemplo.json` — ejemplo de archivo de datos (contenido + colores) para un cliente ficticio.
+  Se usa como plantilla para cargar cada cliente nuevo.
+- `build.js` — script que arma el PDF final a partir de un archivo de datos, sin usar IA. **Este es el
+  paso recomendado**, para no gastar tokens de Claude/ChatGPT cada vez que hay que armar el diseño.
+- `render.js` — alternativa más simple: convierte el .html a PDF tal cual está (sin reemplazar nada),
+  útil solo si se prefiere editar `plantilla_estrategia.html` directamente a mano.
+- `plantilla_estrategia_demo_BOIS.pdf` / `plantilla_estrategia_demo_otra_marca.pdf` — ejemplos ya
+  armados, para ver cómo se ve la misma plantilla con dos paletas y rubros distintos.
 
-## Cómo reusarla para un cliente nuevo
+## Cómo usarla para un cliente nuevo (recomendado, sin gastar tokens)
 
-1. Abrir `plantilla_estrategia.html` y cambiar solo estas líneas (arriba del todo, dentro de `:root`):
+Una sola vez, en tu computadora (necesita [Node.js](https://nodejs.org) instalado):
 
-```css
---color-bg:        #F5F1D6;  /* fondo general */
---color-primary:   #173E4E;  /* bloques oscuros / títulos */
---color-accent:    #C8E27D;  /* pastillas, números, círculos */
---color-card-a:    #FFFCEB;  /* tarjeta clara 1 */
---color-card-b:    #E8F0E8;  /* tarjeta clara 2 */
+```
+npm install playwright
+npx playwright install chromium
 ```
 
-   Reemplazar por los HEX reales de la marca del cliente (los mismos que le pedimos en la descarga de
-   información del agente GPT). Si la marca tiene tipografías propias, también se pueden cambiar
-   `--font-display` (títulos) y `--font-body` (texto).
+Por cada cliente nuevo:
 
-2. Reemplazar los textos entre corchetes `[ASÍ]` por el contenido real de la estrategia (lo que devuelve
-   el GPT Estratega BioMarketing ya da toda esta información en el mismo orden).
+1. Copiá `datos.ejemplo.json` con otro nombre, por ejemplo `cliente_XXX.json`.
+2. Completá los campos con el contenido que te dio el agente GPT (objetivo, pilares, activos, sistema
+   de contenido, etc.) y los colores de marca del cliente en HEX, dentro de `"colores"`. Es texto plano,
+   no hace falta tocar el HTML ni el CSS. Fijate el campo `"_notas"` del ejemplo: hay 11 campos donde
+   la plantilla ya pone el punto final (o las comillas de cierre) sola, así que ahí no hay que repetirlo.
+3. Corré:
 
-3. (Opcional) Si en algún momento hay fotos reales del cliente, se pueden agregar como imagen de fondo
-   de cualquier `.card` — pero la plantilla queda completa y presentable sin ese paso.
+```
+node build.js cliente_XXX.json cliente_XXX.pdf
+```
 
-4. Exportar a PDF. Dos formas:
-   - **Rápida (recomendada):** abrir el .html en Chrome → Imprimir → Guardar como PDF → tamaño de papel
-     personalizado 1280x720 px (o usar "Ajustar a la página" con orientación horizontal), sin márgenes.
-   - **Automática:** con Node instalado, corré una sola vez `npm install playwright && npx playwright
-     install chromium`, y después `node render.js plantilla_estrategia.html salida.pdf` genera el PDF
-     ya paginado exactamente a 1280x720 (`render.js` está en esta misma carpeta).
+Eso genera el PDF final, ya diseñado y con los colores de esa marca, en un solo paso — sin abrir Claude
+ni ChatGPT para el diseño. Solo hace falta volver a esta sesión si en algún momento se necesita cambiar
+la estructura/el layout de la plantilla en sí (agregar una sección nueva, cambiar un grid, etc.), no
+para cargar cada cliente.
+
+## Alternativa manual (editar el HTML a mano)
+
+Si en algún caso puntual no querés usar el JSON: abrí `plantilla_estrategia.html`, reemplazá los
+colores en `:root` y los textos entre corchetes `[ASÍ]` directamente en el archivo, y exportá a PDF:
+- **Rápida:** abrir el .html en Chrome → Imprimir → Guardar como PDF → tamaño de papel personalizado
+  1280x720 px (o "Ajustar a la página" horizontal), sin márgenes.
+- **Con el script:** `node render.js plantilla_estrategia.html salida.pdf` (usa el mismo Node/Playwright
+  del paso anterior).
 
 ## Qué NO cambiar
 
