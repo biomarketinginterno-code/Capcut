@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Plantilla Estrategia BioMarketing</title>
+<style>
+  /* =====================================================================
+     BASE VISUAL DUPLICABLE - BIOMARKETING
+     Para reutilizar con otra marca: cambiar SOLO las variables de abajo
+     (colores) y, si corresponde, --font-display / --font-body.
+     La estructura, los grids y los radios de las tarjetas no se tocan.
+     ===================================================================== */
+  :root{
+    --color-bg:        #F5F1D6;  /* fondo general (crema BOIS) */
+    --color-primary:   #173E4E;  /* bloques oscuros / titulos / texto fuerte */
+    --color-accent:    #C8E27D;  /* acento: pastillas, numeros, circulos */
+    --color-card-a:    #FFFCEB;  /* tarjeta clara 1 */
+    --color-card-b:    #E8F0E8;  /* tarjeta clara 2 (alterna con card-a) */
+    --color-on-primary:#F5F1D6;  /* texto sobre fondo oscuro */
+    --color-text:      #2C3A40;  /* texto de cuerpo sobre fondo claro */
+    --color-muted:     #6B7A80;  /* texto secundario */
+    --color-border:    #E4DCC0;  /* borde sutil de tarjetas claras */
+    --radius-lg: 20px;
+    --radius-md: 14px;
+    --radius-sm: 999px; /* pastillas / circulos: siempre sin puntas */
+    --font-display: Georgia, 'Times New Roman', serif;
+    --font-body: 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#ddd;font-family:var(--font-body);}
+
+  .slide{
+    width:1280px;
+    height:720px;
+    position:relative;
+    background:var(--color-bg);
+    overflow:hidden;
+    break-after:page;
+    page-break-after:always;
+  }
+  .slide:last-child{break-after:auto;page-break-after:auto;}
+
+  .topbar{
+    position:absolute; top:0; left:0; right:0; height:10px;
+    background:var(--color-primary);
+  }
+
+  .content{ padding:56px 64px 0 64px; }
+
+  .eyebrow{
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:12px;
+    letter-spacing:.14em;
+    color:var(--color-primary);
+    text-transform:uppercase;
+    margin:0 0 12px 0;
+  }
+  .eyebrow.on-dark{ color:var(--color-accent); }
+
+  h1.slide-title{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:40px;
+    color:var(--color-primary);
+    margin:0 0 14px 0;
+  }
+  .slide-sub{
+    font-family:var(--font-body);
+    font-size:15px;
+    color:var(--color-muted);
+    max-width:900px;
+    margin:0 0 28px 0;
+  }
+
+  .footer{
+    position:absolute; bottom:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 64px; font-family:var(--font-body); font-size:11px;
+    color:var(--color-muted); letter-spacing:.04em;
+  }
+
+  .pill{
+    display:inline-flex; align-items:center; justify-content:center;
+    background:var(--color-accent); color:var(--color-primary);
+    font-family:var(--font-body); font-weight:700; font-size:11px;
+    letter-spacing:.05em; text-transform:uppercase;
+    padding:10px 18px; border-radius:var(--radius-sm);
+  }
+
+  .card{
+    background:var(--color-card-a);
+    border:1px solid var(--color-border);
+    border-radius:var(--radius-md);
+    padding:22px 24px;
+  }
+  .card.b{ background:var(--color-card-b); }
+  .card.dark{
+    background:var(--color-primary); border:none;
+    color:var(--color-on-primary);
+  }
+
+  .badge-num{
+    width:28px; height:28px; border-radius:var(--radius-sm);
+    background:var(--color-accent); color:var(--color-primary);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-body); font-weight:800; font-size:13px;
+    flex:none;
+  }
+
+  .placeholder-media{
+    border-radius:var(--radius-md);
+    border:2px dashed var(--color-border);
+    background:repeating-linear-gradient(135deg, var(--color-card-a), var(--color-card-a) 10px, var(--color-card-b) 10px, var(--color-card-b) 20px);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-body); font-size:11px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--color-muted); text-align:center;
+  }
+
+  /* ---------- Slide 1: Portada ---------- */
+  .cover{ display:grid; grid-template-columns: 1fr 1fr; height:100%; }
+  .cover-left{
+    background:var(--color-primary); color:var(--color-on-primary);
+    padding:70px 60px; display:flex; flex-direction:column; justify-content:center;
+  }
+  .cover-left h1{
+    font-family:var(--font-display); font-weight:700; font-size:52px;
+    line-height:1.05; margin:0 0 22px 0;
+  }
+  .cover-left .tag{
+    font-family:var(--font-body); font-weight:700; font-size:15px;
+    color:var(--color-accent); letter-spacing:.03em; margin:0 0 22px 0;
+  }
+  .cover-left .italic{
+    font-family:var(--font-display); font-style:italic; font-size:22px;
+    margin:0 0 22px 0; opacity:.95;
+  }
+  .cover-left p.desc{ font-size:14px; opacity:.85; max-width:420px; margin:0 0 26px 0; }
+  .cover-left .pills{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:24px; }
+  .cover-left .date{ font-size:12px; opacity:.7; }
+  .cover-right{ padding:24px; display:grid; grid-template-rows: 1fr 1fr; gap:20px; }
+
+  /* ---------- Grids genericos ---------- */
+  .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+  .grid-4{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+
+  .stat-card{ text-align:center; }
+  .stat-card h2{ font-family:var(--font-display); font-size:26px; color:var(--color-primary); margin:0 0 10px 0; }
+  .stat-card p{ font-size:12.5px; color:var(--color-text); margin:0; line-height:1.4; }
+
+  .moment-card h4{ margin:0 0 8px 0; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-accent); }
+  .card:not(.dark) .moment-card h4{ color:var(--color-primary); opacity:.7; }
+  .moment-card strong{ display:block; font-size:16px; margin-bottom:10px; }
+  .moment-card em{ font-size:12.5px; opacity:.85; }
+
+  .asset-card h3{ display:flex; gap:12px; align-items:center; font-size:15px; color:var(--color-primary); margin:0 0 10px 0; }
+  .asset-card p{ font-size:12.5px; color:var(--color-text); margin:0; line-height:1.45; }
+
+  .pillar-card h3{ font-family:var(--font-display); font-size:19px; color:var(--color-primary); margin:0 0 8px 0; }
+  .pillar-card p{ font-size:12.5px; color:var(--color-text); margin:0; line-height:1.45; }
+
+  .banner-rule{
+    background:var(--color-primary); color:var(--color-on-primary);
+    border-radius:var(--radius-md); text-align:center; font-weight:700;
+    font-size:13px; padding:16px; margin-top:6px;
+  }
+
+  .month-list-item{ display:flex; gap:14px; align-items:flex-start; margin-bottom:18px; }
+  .month-list-item .txt strong{ display:block; font-size:14px; }
+  .month-list-item .txt span{ font-size:12.5px; opacity:.85; }
+  .card.dark .month-list-item .badge-num{ background:var(--color-accent); }
+
+  .placa-block{ margin-bottom:18px; }
+  .placa-block h5{ font-size:12px; letter-spacing:.05em; color:var(--color-primary); margin:0 0 6px 0; }
+  .placa-block p{ font-size:12.5px; color:var(--color-text); margin:0; line-height:1.4; }
+
+  .check-list{ margin:0; padding-left:18px; font-size:13px; line-height:1.7; color:var(--color-text); }
+  .lang-row{ margin-top:18px; font-size:12.5px; }
+  .lang-row b{ color:var(--color-primary); }
+</style>
+</head>
+<body>
+
+<!-- SLIDE 1 - PORTADA -->
+<section class="slide">
+  <div class="cover">
+    <div class="cover-left">
+      <h1>[MARCA]<br>[LINEA/PRODUCTO]</h1>
+      <div class="tag">PROPUESTA DE POSICIONAMIENTO + ESTRATEGIA DE CONTENIDO / 3 MESES</div>
+      <div class="italic">[Palabra clave 1]. [Palabra clave 2]. [Palabra clave 3].</div>
+      <p class="desc">Propuesta inicial para presentar, validar y ajustar con el equipo de [MARCA].</p>
+      <div class="pills">
+        <span class="pill">[Pilar A] 50%</span>
+        <span class="pill">[Pilar B] 50%</span>
+        <span class="pill">[Transversal]</span>
+      </div>
+      <div class="date">[DD.MM.AAAA]</div>
+    </div>
+    <div class="cover-right">
+      <div class="placeholder-media">FOTO / VIDEO 1</div>
+      <div class="placeholder-media">FOTO / VIDEO 2</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 2 - NORTE ESTRATEGICO -->
+<section class="slide">
+  <div class="topbar"></div>
+  <div class="content">
+    <div class="eyebrow">01 / NORTE ESTRATÉGICO</div>
+    <h1 class="slide-title">La marca que queremos construir</h1>
+    <p class="slide-sub">[Frase que resume el objetivo de posicionamiento en una linea, tono directo].</p>
+  </div>
+  <div class="content" style="padding-top:0;">
+    <div class="grid-2">
+      <div class="card dark">
+        <div class="eyebrow on-dark">HIPÓTESIS DE POSICIONAMIENTO</div>
+        <h2 style="font-family:var(--font-display); font-size:26px; line-height:1.25; margin:14px 0 18px 0;">
+          [Frase de posicionamiento en 2-3 lineas, la promesa central de la marca.]
+        </h2>
+        <p style="font-size:13px; opacity:.85; max-width:420px;">[Aclaracion: donde esta la sofisticacion/diferencial y donde NO.]</p>
+      </div>
+      <div class="card">
+        <div class="eyebrow">TERRITORIO DE MARCA</div>
+        <svg width="100%" height="230" viewBox="0 0 460 230">
+          <line x1="60" y1="20" x2="60" y2="190" stroke="#B9B39A" stroke-width="2"/>
+          <line x1="60" y1="190" x2="420" y2="190" stroke="#B9B39A" stroke-width="2"/>
+          <circle cx="330" cy="90" r="20" fill="var(--color-accent)" stroke="var(--color-primary)" stroke-width="2"/>
+          <text x="358" y="95" font-family="Helvetica, Arial" font-size="13" font-weight="700" fill="#173E4E">[MARCA]</text>
+          <text x="15" y="115" font-family="Helvetica, Arial" font-size="10" font-weight="700" fill="#173E4E" transform="rotate(-90 15 115)" text-anchor="middle">EJE VERTICAL</text>
+          <text x="360" y="210" font-family="Helvetica, Arial" font-size="10" font-weight="700" fill="#173E4E">EJE HORIZONTAL</text>
+        </svg>
+        <p style="text-align:center; font-size:12.5px; color:var(--color-text);">[Que NO es] / [Que SI es, en una linea].</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 2</span></div>
+</section>
+
+<!-- SLIDE 3 - PERSONA Y MOMENTOS -->
+<section class="slide">
+  <div class="topbar"></div>
+  <div class="content">
+    <div class="eyebrow">02 / PERSONA Y MOMENTOS</div>
+    <h1 class="slide-title">A quién le hablamos y cuándo</h1>
+    <p class="slide-sub">[Una linea sobre cuando vive la marca durante el dia/semana].</p>
+    <div class="grid-4" style="margin-bottom:26px;">
+      <div class="card stat-card"><h2>[DATO]</h2><p>[Descripcion corta del segmento 1]</p></div>
+      <div class="card b stat-card"><h2>[SEGMENTO]</h2><p>[Descripcion corta del segmento 2]</p></div>
+      <div class="card stat-card"><h2>[SEGMENTO]</h2><p>[Descripcion corta del segmento 3]</p></div>
+      <div class="card b stat-card"><h2>[VALOR]</h2><p>[Que percepcion de valor buscamos]</p></div>
+    </div>
+    <div class="eyebrow" style="margin-bottom:14px;">LOS MOMENTOS QUE DEBEN QUEDAR INSTALADOS</div>
+    <div class="grid-3">
+      <div class="card moment-card"><h4>MOMENTO 1</h4><strong>[Que se consume]</strong><em>"[Frase en primera persona]."</em></div>
+      <div class="card dark moment-card"><h4>MOMENTO 2</h4><strong>[Que se consume]</strong><em>"[Frase en primera persona]."</em></div>
+      <div class="card moment-card"><h4>MOMENTO 3</h4><strong>[Que se consume]</strong><em>"[Frase en primera persona]."</em></div>
+    </div>
+  </div>
+  <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 3</span></div>
+</section>
+
+<!-- SLIDE 4 - ACTIVOS REALES -->
+<section class="slide">
+  <div class="topbar"></div>
+  <div class="content">
+    <div class="eyebrow">03 / ACTIVOS REALES</div>
+    <h1 class="slide-title">Qué tiene [MARCA] para construir posicionamiento</h1>
+    <p class="slide-sub">La estrategia se apoya en ventajas que ya existen; no en inventar una personalidad nueva.</p>
+    <div class="grid-3" style="margin-bottom:18px;">
+      <div class="card asset-card"><h3><span class="badge-num">1</span>[ACTIVO 1]</h3><p>[Por que importa, en 1-2 lineas].</p></div>
+      <div class="card asset-card"><h3><span class="badge-num">2</span>[ACTIVO 2]</h3><p>[Por que importa, en 1-2 lineas].</p></div>
+      <div class="card asset-card"><h3><span class="badge-num">3</span>[ACTIVO 3]</h3><p>[Por que importa, en 1-2 lineas].</p></div>
+    </div>
+    <div class="grid-3">
+      <div class="card b asset-card"><h3><span class="badge-num">4</span>[ACTIVO 4]</h3><p>[Por que importa, en 1-2 lineas].</p></div>
+      <div class="card b asset-card"><h3><span class="badge-num">5</span>[ACTIVO 5]</h3><p>[Por que importa, en 1-2 lineas].</p></div>
+      <div class="card b asset-card"><h3><span class="badge-num">6</span>[ACTIVO 6]</h3><p>[Por que importa, en 1-2 lineas].</p></div>
+    </div>
+  </div>
+  <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 4</span></div>
+</section>
+
+<!-- SLIDE 5 - PILARES -->
+<section class="slide">
+  <div class="topbar"></div>
+  <div class="content">
+    <div class="eyebrow">04 / PILARES</div>
+    <h1 class="slide-title">El sistema de posicionamiento</h1>
+    <p class="slide-sub">[N] pilares. [Cómo se reparte el peso entre ellos, ej. 50%/50%].</p>
+    <div class="grid-3" style="margin-bottom:14px;">
+      <div class="card pillar-card"><h3>[PILAR 1]</h3><p>[Que muestra este pilar].</p></div>
+      <div class="card pillar-card"><h3>[PILAR 2]</h3><p>[Que muestra este pilar].</p></div>
+      <div class="card pillar-card"><h3>[PILAR 3]</h3><p>[Que muestra este pilar].</p></div>
+    </div>
+    <div class="grid-3" style="margin-bottom:14px;">
+      <div class="card b pillar-card"><h3>[PILAR 4]</h3><p>[Que muestra este pilar].</p></div>
+      <div class="card b pillar-card"><h3>[PILAR 5]</h3><p>[Que muestra este pilar].</p></div>
+      <div class="card b pillar-card"><h3>[PILAR 6]</h3><p>[Que muestra este pilar].</p></div>
+    </div>
+    <div class="banner-rule">REGLA DE MARCA: [que si / que nunca, en una linea contundente].</div>
+  </div>
+  <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 5</span></div>
+</section>
+
+<!-- SLIDE 6 - SISTEMA MENSUAL -->
+<section class="slide">
+  <div class="topbar"></div>
+  <div class="content">
+    <div class="eyebrow">05 / CONTENIDO</div>
+    <h1 class="slide-title">Sistema mensual: [N] piezas</h1>
+    <p class="slide-sub">[Como debe entrar el contenido: tono, duracion, estilo].</p>
+    <div class="grid-2">
+      <div class="card dark">
+        <h2 style="font-family:var(--font-display); font-size:24px; margin:0 0 18px 0;">[N] REELS / MES</h2>
+        <div class="month-list-item"><span class="badge-num">1</span><div class="txt"><strong>[PILAR]</strong><span>[Que se muestra]</span></div></div>
+        <div class="month-list-item"><span class="badge-num">2</span><div class="txt"><strong>[PILAR]</strong><span>[Que se muestra]</span></div></div>
+        <div class="month-list-item"><span class="badge-num">3</span><div class="txt"><strong>[PILAR]</strong><span>[Que se muestra]</span></div></div>
+        <div class="month-list-item"><span class="badge-num">4</span><div class="txt"><strong>[PILAR / VIRAL]</strong><span>Tendencia del mes a completar por BioMarketing</span></div></div>
+      </div>
+      <div class="card">
+        <h2 style="font-family:var(--font-display); font-size:24px; margin:0 0 18px 0; color:var(--color-primary);">[N] PLACAS / MES</h2>
+        <div class="placa-block"><h5>PLACA 1</h5><p>[Concepto + foto + copy minimo].</p></div>
+        <div class="placa-block"><h5>PLACA 2</h5><p>[Concepto + foto + copy minimo].</p></div>
+        <div class="pills" style="display:flex; gap:8px; flex-wrap:wrap;">
+          <span class="pill">[PILAR A]</span><span class="pill">[PILAR B]</span><span class="pill">[TRANSVERSAL]</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 6</span></div>
+</section>
+
+<!-- SLIDE 7 - PRODUCCION -->
+<section class="slide">
+  <div class="topbar"></div>
+  <div class="content">
+    <div class="eyebrow">06 / PRODUCCIÓN</div>
+    <h1 class="slide-title">Cómo debe verse [MARCA]</h1>
+    <p class="slide-sub">Una producción por período debe alimentar todo el ciclo de contenido.</p>
+    <div class="grid-2">
+      <div style="display:grid; grid-template-rows:1fr 1fr; gap:16px;">
+        <div class="placeholder-media">FOTO / VIDEO 1</div>
+        <div class="placeholder-media">FOTO / VIDEO 2</div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">CHECKLIST DE PRODUCCIÓN</div>
+        <ul class="check-list">
+          <li>[Item de produccion 1].</li>
+          <li>[Item de produccion 2].</li>
+          <li>[Item de produccion 3].</li>
+          <li>[Item de produccion 4].</li>
+          <li>Grabar todo sin texto para reutilizar en reels, historias y placas.</li>
+        </ul>
+        <div class="lang-row"><b>LENGUAJE</b> &nbsp;[duracion] / [texto] / [personas] / [sonido/musica].</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>[MARCA] / PROPUESTA [AÑO]</span><span>BIO MARKETING &nbsp;&nbsp; 7</span></div>
+</section>
+
+</body>
+</html>
