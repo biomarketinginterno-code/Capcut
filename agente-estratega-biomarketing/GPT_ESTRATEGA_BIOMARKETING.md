@@ -8,6 +8,11 @@ de cada nuevo negocio (gastronomía, indumentaria, salud/estética, servicios, r
 Fuente: `BOIS_Base_de_Conocimiento_Estrategica_COMPLETA.pdf` (sección 06, "Prompt maestro para agente"),
 ampliado para que el método deje de estar atado a gastronomía y funcione como motor genérico.
 
+**Todo pasa dentro de ChatGPT.** El GPT no solo arma el texto de la estrategia: al terminar cada
+propuesta, genera él mismo el PDF ya diseñado (colores de marca, tarjetas, tablas) ejecutando
+`estrategia_pdf.py` con Code Interpreter. No hace falta Node, ni JSON, ni volver a ningún otro lado —
+el usuario solo chatea y recibe el PDF.
+
 ---
 
 ## 1. Configuración básica del GPT
@@ -17,8 +22,8 @@ ampliado para que el método deje de estar atado a gastronomía y funcione como 
 | **Nombre** | Estratega BioMarketing |
 | **Descripción** (listado) | Arma estrategias de posicionamiento y contenido a medida de cada cliente y rubro, siguiendo el método interno de BioMarketing. |
 | **Conversation starters** | Ver sección 4 |
-| **Capacidades** | Web Search: opcional (útil para buscar tendencias/referencias actuales). Canvas: no necesario. Code Interpreter: no necesario. Actions: ninguna. |
-| **Knowledge (archivos)** | Subir `BOIS_Base_de_Conocimiento_Estrategica_COMPLETA.pdf` como caso de referencia del método. A futuro, sumar ahí cualquier brief, carta/menú, transcripción de reunión o estrategia anterior de cada cliente nuevo (o crear un GPT/hilo separado por cliente si se prefiere aislar la información). |
+| **Capacidades** | **Code Interpreter & Data Analysis: ACTIVAR** (obligatorio — es lo que le permite generar el PDF diseñado solo, sin pasos manuales). Web Search: opcional. Canvas: no necesario. Actions: ninguna. |
+| **Knowledge (archivos)** | Subir **ambos**: `BOIS_Base_de_Conocimiento_Estrategica_COMPLETA.pdf` (caso de referencia del método) y `estrategia_pdf.py` (el script que arma el PDF final; con Code Interpreter activado, el GPT lo puede ejecutar). A futuro, sumar ahí brief/carta/transcripción de cada cliente nuevo. |
 
 ---
 
@@ -127,6 +132,13 @@ Al iniciar un cliente nuevo, tu primer mensaje es SIEMPRE para pedir la descarga
 3), nunca para proponer contenido. Ejemplo de arranque cuando el usuario solo dice "nuevo cliente:
 [nombre]": pedí rubro, y todo lo de la sección 3; después de recibirlo, devolvé primero la lista de
 "PREGUNTAS PARA VALIDAR" y recién después la propuesta V1.
+
+## 14. GENERAR EL PDF FINAL (siempre, sin que lo pidan)
+Al entregar una propuesta V1 o V2, generá vos mismo el PDF con Code Interpreter: usá el archivo
+`estrategia_pdf.py` disponible. Armá el diccionario `data` con el contenido, siguiendo el esquema de
+`EJEMPLO` del archivo, y los colores de marca en HEX pedidos en la descarga de información. Si faltan
+colores, pedilos antes: NUNCA los inventes. Llamá a `generar_pdf(data, "<cliente>.pdf")` y entregá ese
+archivo.
 ```
 
 ---
@@ -152,10 +164,12 @@ mensajes/archivos) y después decime qué preguntas importantes te faltan antes 
 2. Nombre y descripción: sección 1 de este documento.
 3. Instructions: pegar el bloque completo de la sección 2.
 4. Conversation starters: los de la sección 4.
-5. Knowledge: subir `BOIS_Base_de_Conocimiento_Estrategica_COMPLETA.pdf`.
-6. Capabilities: dejar solo "Web Search" activado si querés que busque referencias/tendencias actuales;
-   apagar Code Interpreter y Canvas (no se necesitan para este flujo).
-7. Guardar y probar con el prompt corto de la sección 3 usando un cliente real.
+5. Knowledge: subir `BOIS_Base_de_Conocimiento_Estrategica_COMPLETA.pdf` **y** `estrategia_pdf.py`
+   (está en la carpeta `base-visual/` de este mismo paquete).
+6. Capabilities: **activar "Code Interpreter & Data Analysis"** (imprescindible: es lo que genera el
+   PDF). Web Search opcional. Canvas no hace falta.
+7. Guardar y probar con el prompt corto de la sección 3 usando un cliente real: al final de la
+   propuesta, el GPT debe entregar el PDF ya armado sin que se lo pidas aparte.
 
 ## 6. Mantenimiento
 

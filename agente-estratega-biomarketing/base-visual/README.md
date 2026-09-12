@@ -16,19 +16,29 @@ como plus, pero nunca son un requisito.
 
 ## Archivos
 
-- `plantilla_estrategia.html` — la plantilla. No hace falta tocarla a mano para usarla con un cliente
-  nuevo (ver más abajo); todo el color vive en las variables CSS del bloque `:root` al principio del
-  archivo, por si alguna vez hace falta un ajuste de diseño más de fondo.
-- `datos.ejemplo.json` — ejemplo de archivo de datos (contenido + colores) para un cliente ficticio.
-  Se usa como plantilla para cargar cada cliente nuevo.
-- `build.js` — script que arma el PDF final a partir de un archivo de datos, sin usar IA. **Este es el
-  paso recomendado**, para no gastar tokens de Claude/ChatGPT cada vez que hay que armar el diseño.
-- `render.js` — alternativa más simple: convierte el .html a PDF tal cual está (sin reemplazar nada),
-  útil solo si se prefiere editar `plantilla_estrategia.html` directamente a mano.
+- `estrategia_pdf.py` — **el que importa.** Script Python (reportlab) que arma el PDF de las 14
+  secciones. Pensado para correr DENTRO de ChatGPT via Code Interpreter: subilo como Knowledge del GPT
+  (junto con la base de BOIS) y activá "Code Interpreter" — el propio agente arma el diccionario de
+  datos con el contenido de la charla y los colores de marca, y lo ejecuta solo. El usuario no toca
+  código ni archivos.
+- `plantilla_estrategia.html` / `datos.ejemplo.json` / `build.js` / `render.js` — versión alternativa
+  con Node.js, para quien prefiera generar el PDF localmente sin pasar por ChatGPT (ver más abajo). Es
+  el mismo diseño, pero requiere instalar Node y correr un comando por cliente.
 - `plantilla_estrategia_demo_BOIS.pdf` / `plantilla_estrategia_demo_otra_marca.pdf` — ejemplos ya
-  armados, para ver cómo se ve la misma plantilla con dos paletas y rubros distintos.
+  armados (con la versión HTML), para ver cómo se ve la misma plantilla con dos paletas y rubros
+  distintos.
 
-## Cómo usarla para un cliente nuevo (recomendado, sin gastar tokens)
+## Opción recomendada: todo dentro de ChatGPT (a prueba de balas)
+
+1. En el GPT "Estratega BioMarketing", Knowledge: subir `estrategia_pdf.py` (además del PDF de BOIS).
+2. Capabilities: activar "Code Interpreter & Data Analysis".
+3. Listo. El GPT ya tiene la instrucción (sección 14 de `GPT_ESTRATEGA_BIOMARKETING.md`) para armar el
+   diccionario de datos con el contenido de cada estrategia y los colores de marca, ejecutar
+   `generar_pdf(data, "cliente.pdf")` y entregar el archivo — sin que el usuario haga nada técnico.
+4. Si el GPT no tiene los colores de la marca todavía, los va a pedir antes de generar el PDF (nunca
+   los inventa). Alcanza con pasárselos en HEX en el chat.
+
+## Alternativa con Node.js (sin pasar por ChatGPT)
 
 Una sola vez, en tu computadora (necesita [Node.js](https://nodejs.org) instalado):
 
@@ -42,18 +52,13 @@ Por cada cliente nuevo:
 1. Copiá `datos.ejemplo.json` con otro nombre, por ejemplo `cliente_XXX.json`.
 2. Completá los campos con el contenido que te dio el agente GPT (objetivo, pilares, activos, sistema
    de contenido, etc.) y los colores de marca del cliente en HEX, dentro de `"colores"`. Es texto plano,
-   no hace falta tocar el HTML ni el CSS. Fijate el campo `"_notas"` del ejemplo: hay 11 campos donde
+   no hace falta tocar el HTML ni el CSS. Fijate el campo `"_notas"` del ejemplo: hay varios campos donde
    la plantilla ya pone el punto final (o las comillas de cierre) sola, así que ahí no hay que repetirlo.
 3. Corré:
 
 ```
 node build.js cliente_XXX.json cliente_XXX.pdf
 ```
-
-Eso genera el PDF final, ya diseñado y con los colores de esa marca, en un solo paso — sin abrir Claude
-ni ChatGPT para el diseño. Solo hace falta volver a esta sesión si en algún momento se necesita cambiar
-la estructura/el layout de la plantilla en sí (agregar una sección nueva, cambiar un grid, etc.), no
-para cargar cada cliente.
 
 ## Alternativa manual (editar el HTML a mano)
 
