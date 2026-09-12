@@ -3,8 +3,14 @@
 Sacada del diseño real de `BOIS_CANTINA_Propuesta_Posicionamiento_3_Meses.pdf` (colores extraídos
 píxel a píxel, no a ojo): navy `#173E4E`, crema `#F5F1D6`, tarjetas `#FFFCEB` / `#E8F0E8`, acento lima
 `#C8E27D`. Mismo layout de 7 slides (portada, norte estratégico, persona y momentos, activos, pilares,
-sistema mensual, producción), sin fotos reales y con todas las tarjetas/pastillas con esquinas
-redondeadas.
+sistema mensual, producción), con todas las tarjetas/pastillas con esquinas redondeadas.
+
+**No depende de fotos.** BOIS es un caso aparte que ya tiene su propio material fotográfico; la
+plantilla general no asume que haya fotos disponibles. Los espacios que en el PDF de BOIS ocupaban
+fotos acá se resuelven solo con color, tipografía y forma (paneles `deco-panel`: un emblema con un
+número grande, una cita tipográfica, un bloque de texto sobre fondo de color). El diseño se ve completo
+sin que nadie tenga que mandar una sola imagen; si más adelante hay fotos del cliente, se pueden sumar
+como plus, pero nunca son un requisito.
 
 ## Archivos
 
@@ -34,7 +40,8 @@ redondeadas.
 2. Reemplazar los textos entre corchetes `[ASÍ]` por el contenido real de la estrategia (lo que devuelve
    el GPT Estratega BioMarketing ya da toda esta información en el mismo orden).
 
-3. Reemplazar los bloques `placeholder-media` por las fotos/videos reales del cliente cuando estén.
+3. (Opcional) Si en algún momento hay fotos reales del cliente, se pueden agregar como imagen de fondo
+   de cualquier `.card` — pero la plantilla queda completa y presentable sin ese paso.
 
 4. Exportar a PDF. Dos formas:
    - **Rápida (recomendada):** abrir el .html en Chrome → Imprimir → Guardar como PDF → tamaño de papel
