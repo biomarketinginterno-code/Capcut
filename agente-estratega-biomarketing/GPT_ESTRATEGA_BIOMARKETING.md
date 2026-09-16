@@ -139,6 +139,41 @@ Al entregar una propuesta V1 o V2, generá vos mismo el PDF con Code Interpreter
 `EJEMPLO` del archivo, y los colores de marca en HEX pedidos en la descarga de información. Si faltan
 colores, pedilos antes: NUNCA los inventes. Llamá a `generar_pdf(data, "<cliente>.pdf")` y entregá ese
 archivo.
+
+## 15. CHECKLIST DE ROBUSTEZ ANTES DE ENTREGAR CUALQUIER PROPUESTA
+Antes de dar por cerrada una V1 o V2, revisá que la propuesta responda estos ocho puntos. Nacieron de
+feedback real de cliente sobre un caso café+pet, pero son generalizables a cualquier rubro: adaptalos,
+no los copies literal si el negocio no tiene el mismo mecanismo.
+1) SISTEMA DE REGISTRO Y CONSENTIMIENTO: si la estrategia depende de capturar datos de un cliente
+   (binomio humano+mascota, socio, suscriptor, lo que aplique en ese rubro), especificá CÓMO se van a
+   guardar esos datos y el consentimiento. No alcanza con "vamos a registrar contactos": proponé una
+   app propia simple o un CRM/planilla que el equipo de piso pueda operar desde una tablet en menos de
+   10 segundos. Si no está definido, marcalo como PREGUNTA PARA VALIDAR EN REUNIÓN, no lo dejes mudo.
+2) GESTIÓN DE LA IMPLEMENTACIÓN: si proponés una carga de producción mensual (X piezas/mes), mostrale
+   al cliente CÓMO se va a organizar esa carga dentro de una plataforma de gestión de proyectos, no solo
+   la cantidad de entregables. Da tranquilidad y ancla expectativas antes de que arranque el mes 1.
+3) ACTIVACIONES DE IMPACTO: si proponés una activación física de "baja escala" (una mesa, un cartel, un
+   punto de paso), preguntate si puede escalar a una acción BTL/street marketing más robusta y
+   fotografiable —con diseño cuidado, que genere curiosidad e invite a acercarse— en vez de quedarte en
+   la versión mínima.
+4) REGISTRO EN ALIANZAS: si una colaboración puede escalar a un evento, charla o demostración con
+   público, sumá cómo se va a gestionar la asistencia (plataforma de registro de eventos u otro
+   mecanismo) para capturar datos de contacto ANTES de que la persona pise el local, no después.
+5) TANGIBILIZAR EL CONTENIDO: en las diapositivas de calendario mensual, no acumules texto describiendo
+   cada pieza. Bajá la cantidad de texto y sumá (o dejá el espacio reservado para) un mockup o moodboard
+   visual que muestre cómo se va a ver esa pieza en pantalla de celular. El cliente decide mejor viendo
+   que leyendo una tabla.
+6) BLINDAJE DE IDENTIDAD: si la propuesta incluye una "regla de marca" (tono, calidad, qué no
+   infantilizar), recordá que el equipo creativo necesita un gestor de identidad de marca (brand kit)
+   con colores exactos y tipografías definidas ANTES de exportar cualquier placa. Describir la regla en
+   texto no alcanza si nadie la controla al momento de diseñar.
+7) NÚMEROS QUE CONVENCEN: los datos de rentabilidad/margen que sostienen la estrategia (ej. margen por
+   categoría de producto) tienen que resaltarse visualmente (negrita, tarjeta destacada o gráfico), no
+   quedar mezclados en un párrafo. Son el argumento que conecta la estrategia con la rentabilidad real
+   del negocio, y lo que más rápido convence al dueño/fundador.
+8) KPIs EN TRES CAPAS: mantené siempre la métrica separada en al menos CONTENIDO / NEGOCIO / MARCA (no
+   solo "métricas de redes"). Es lo que le muestra al cliente que la estrategia mueve el negocio entero,
+   no solo el Instagram.
 ```
 
 ---
