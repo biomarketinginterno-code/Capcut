@@ -37,7 +37,7 @@ export async function render(view) {
         <p>${ev.at ? html`${new Date(ev.at).toLocaleString('es-AR', { timeZone: ev.timezone, weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}${ev.place ? ` · ${ev.place}` : ''}` : html`Todavía no cargaste la fecha · <a href="#/ajustes" style="color:#fff">configurarla</a>`}</p></div>
         ${cd && html`<div class="count">${cd.n}<small>${cd.l}</small></div>`}</div>
 
-      ${wa.mode !== 'cloud' && html`<div class="banner warn"><div><b>WhatsApp en modo simulación</b>Todo funciona, pero los mensajes no salen de verdad. Para conectar tu número seguí la guía del README y cargá las variables WHATSAPP_*.</div></div>`}
+      ${wa.mode !== 'cloud' && html`<div class="banner warn"><div><b>WhatsApp en modo simulación</b>Todo funciona, pero los mensajes no salen de verdad. ${state.meta.credentials_editable ? html`Para conectar tu número cargá tus datos de WhatsApp en <a href="#/ajustes">Ajustes</a>.` : 'Para conectar tu número seguí la guía del README y cargá las variables WHATSAPP_*.'}</div></div>`}
       ${wa.mode === 'cloud' && wa.issues?.length ? html`<div class="banner bad"><div><b>WhatsApp conectado, pero incompleto</b>${wa.issues.join(' ')}</div></div>` : ''}
 
       <div class="grid kpis">

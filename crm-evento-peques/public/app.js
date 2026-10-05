@@ -1,4 +1,4 @@
-import { state, html, mount, get, post, icon, fail, toast } from './lib.js';
+import { state, html, mount, get, post, icon, fail, toast, setToken } from './lib.js';
 
 const ROUTES = [
   { id: 'panel', label: 'Panel', icon: 'home', load: () => import('./views/dashboard.js') },
@@ -28,7 +28,8 @@ function showLogin(message = '') {
     const btn = e.target.querySelector('button');
     btn.disabled = true;
     try {
-      await post('/api/login', { password: e.target.password.value });
+      const r = await post('/api/login', { password: e.target.password.value });
+      if (r.token) setToken(r.token); // en la nube la sesión es un token; con servidor propio es una cookie
       boot();
     } catch (err) {
       btn.disabled = false;
@@ -57,7 +58,7 @@ async function boot() {
       <div class="foot"><button class="btn sm ghost" id="logout">Cerrar sesión</button></div>
     </aside>
     <main id="view" tabindex="-1"></main></div>`);
-  app.querySelector('#logout').onclick = async () => { await post('/api/logout').catch(() => {}); showLogin(); };
+  app.querySelector('#logout').onclick = async () => { await post('/api/logout').catch(() => {}); setToken(''); showLogin(); };
   pollUnread();
   clearInterval(unreadTimer);
   unreadTimer = setInterval(pollUnread, 8000);

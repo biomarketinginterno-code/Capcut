@@ -1,5 +1,5 @@
 import {
-  state, html, raw, mount, get, post, put, del, qs, icon, toast, fail, modal, confirmBox,
+  state, html, raw, mount, get, post, put, del, qs, icon, toast, fail, modal, confirmBox, download,
   statusInfo, statusOptions, waLink, debounce, initials,
 } from '../lib.js';
 
@@ -33,7 +33,6 @@ export async function render(view) {
     for (const id of [...selected]) if (!contacts.some((c) => c.id === id)) selected.delete(id);
     $('#ft').innerHTML = html`<option value="">Todas las etiquetas</option>${tags.map((t) => html`<option value="${t.tag}" ${t.tag === f.tag ? raw('selected') : ''}>${t.tag} (${t.count})</option>`)}`.s;
     $('#fs').innerHTML = statusOptions(f.status, 'Todos los estados').s;
-    $('#export').href = `/api/contacts/export.csv?${qs(f)}`;
     draw();
   }
 
@@ -218,6 +217,10 @@ export async function render(view) {
   $('#q').addEventListener('input', debounce((e) => { f.search = e.target.value; shown = PAGE; load(); }));
   $('#fs').addEventListener('change', (e) => { f.status = e.target.value; shown = PAGE; load(); });
   $('#ft').addEventListener('change', (e) => { f.tag = e.target.value; shown = PAGE; load(); });
+  $('#export').onclick = async (e) => {
+    e.preventDefault();
+    try { await download(`/api/contacts/export.csv?${qs(f)}`, 'contactos.csv'); } catch (err) { fail(err); }
+  };
   $('#new').onclick = () => contactModal();
   $('#import').onclick = importModal;
 

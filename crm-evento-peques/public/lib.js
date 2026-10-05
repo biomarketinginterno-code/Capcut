@@ -17,14 +17,40 @@ export const mount = (el, tpl) => {
 };
 
 // ---- API ----
-export async function api(method, path, body) {
-  const res = await fetch(path, {
-    method,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+// Con config.js vacío (servidor propio) las rutas son /api/...; en la nube (CRM_API = URL de la función de Supabase)
+// /api/x pasa a ser <CRM_API>/x y la sesión viaja como token en el header Authorization (no hay cookies).
+const API_BASE = String(window.CRM_API || '').replace(/\/+$/, '');
+export const cloud = Boolean(API_BASE);
+const TOKEN_KEY = 'crm:token';
+let memToken = '';
+const getToken = () => {
+  if (memToken) return memToken;
+  try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } // puede fallar en ventanas privadas
+};
+export function setToken(t) {
+  memToken = t || '';
+  try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch { /* sin almacenamiento: queda en memoria */ }
+}
+const apiUrl = (path) => (API_BASE ? API_BASE + path.replace(/^\/api/, '') : path);
+// en estas rutas un 401 significa "datos incorrectos", no "sesión vencida"
+const NOT_SESSION = new Set(['/api/login', '/api/password']);
+
+function request(method, path, body) {
+  const headers = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (cloud && getToken()) headers.Authorization = `Bearer ${getToken()}`;
+  return fetch(apiUrl(path), {
+    method, headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
-    credentials: 'same-origin',
+    credentials: cloud ? 'omit' : 'same-origin',
   });
-  if (res.status === 401 && path !== '/api/login') {
+}
+
+export async function api(method, path, body) {
+  let res;
+  try { res = await request(method, path, body); } catch { throw new Error('No hay conexión con el servidor. Revisá tu internet y probá de nuevo.'); }
+  if (res.status === 401 && !NOT_SESSION.has(path.split('?')[0])) {
+    setToken('');
     window.dispatchEvent(new Event('crm:unauthorized'));
     throw new Error('Tu sesión venció. Volvé a entrar.');
   }
@@ -36,6 +62,22 @@ export async function api(method, path, body) {
     throw e;
   }
   return data;
+}
+
+/** Baja un archivo (CSV) con la sesión puesta: un <a href> común no puede mandar el token. */
+export async function download(path, fallbackName = 'descarga.csv') {
+  let res;
+  try { res = await request('GET', path); } catch { throw new Error('No hay conexión con el servidor.'); }
+  if (res.status === 401) { setToken(''); window.dispatchEvent(new Event('crm:unauthorized')); throw new Error('Tu sesión venció. Volvé a entrar.'); }
+  if (!res.ok) throw new Error(`No se pudo descargar (error ${res.status})`);
+  const blob = await res.blob();
+  const name = /filename="?([^";]+)"?/.exec(res.headers.get('content-disposition') || '')?.[1] || fallbackName;
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 export const get = (p) => api('GET', p);
 export const post = (p, b = {}) => api('POST', p, b);

@@ -11,11 +11,87 @@ CRM para el evento de los peques: cargás los contactos y sus teléfonos, y el s
   (`SI` confirma y cambia el estado solo, `NO`, `BAJA` da de baja). Todo editable.
 - **WhatsApp Cloud API** (la API oficial de Meta). Sin credenciales corre en **modo simulación**, para probar todo.
 
-No necesita instalar nada más que Node.js 22.13 o superior (la base de datos SQLite viene incluida en Node).
+**Tres formas de usarlo** (el código es el mismo, cambia dónde corre):
+
+| | Costo | Para quién |
+|---|---|---|
+| **A. Nube gratis: Supabase + Netlify** (sección «Versión en la nube») | $0 | Lo más fácil: queda funcionando 24 h sin servidor propio. |
+| **B. Servidor propio** (secciones 1 a 3, ej. Render) | ~USD 7/mes | Si preferís un solo servidor Node con su base SQLite. |
+| **C. En tu compu** (`npm start` o `cd supabase && npm run dev`) | $0 | Para probarlo o desarrollarlo; sin WhatsApp real. |
+
+---
+
+## ☁️ Versión en la nube, gratis (Supabase + Netlify)
+
+| Pieza | Dónde vive | Qué hace |
+|---|---|---|
+| Interfaz (lo que ve tu equipo) | **Netlify** (sitio estático) | Contactos, chats, campañas, ajustes |
+| Base de datos + API + tareas programadas | **Supabase** (Postgres + Edge Function + `pg_cron`) | Guarda todo, habla con WhatsApp, y **cada minuto** envía lo pendiente y dispara los recordatorios |
+
+La interfaz y la API están en dominios distintos, así que la sesión viaja como un **token firmado** (no como cookie).
+Las tablas tienen la seguridad por filas (RLS) activada **sin políticas**: la API pública de Supabase no puede leer nada;
+solo accede la función, con credenciales de servidor.
+
+### Publicar la interfaz en Netlify (elegí una)
+
+La dirección de la API ya viene configurada en `netlify.toml` (variable `CRM_API_URL`).
+
+1. **Desde GitHub** (se actualiza sola con cada cambio): en Netlify → *Add new site → Import an existing project* →
+   GitHub → este repositorio y su rama → *Deploy*. No hay que tocar nada: `netlify.toml` ya trae carpeta, comando y versión.
+2. **Arrastrando una carpeta** (sin GitHub): corré
+   `cd crm-evento-peques && CRM_API_URL=https://TU-PROYECTO.supabase.co/functions/v1/api node scripts/build-netlify.mjs`
+   y arrastrá la carpeta `dist/` a <https://app.netlify.com/drop>.
+
+Después abrí la dirección que te da Netlify y entrá con la contraseña inicial (cambiala en **Ajustes → Tu cuenta**).
+
+### Conectar WhatsApp en la versión en la nube
+
+Seguí las secciones **2.1, 2.3, 2.4 y 2.5** más abajo, con estas diferencias:
+
+- **No hace falta 2.2** (publicar con HTTPS): la función de Supabase ya es pública y con HTTPS.
+- Las credenciales **no van en variables de entorno**: se cargan en **Ajustes → WhatsApp** (token, ID del número y App
+  Secret). Quedan en tu base de Supabase y el panel nunca las vuelve a mostrar.
+- En esa misma pantalla están la **URL del webhook** y el **token de verificación** para pegar en Meta, con botón de copiar.
+
+### Límites del plan gratuito (según la documentación de cada servicio; verificá los vigentes)
+
+- **Supabase**: 500 MB de base y 500.000 llamadas a funciones por mes (el cron usa ~43.000). Los proyectos gratuitos
+  **se pausan si pasan una semana con poca actividad**; el cron genera consultas todo el tiempo y no debería pasar, pero
+  si ocurriera se reactiva con un clic en el panel de Supabase (*Resume project*) y no se pierde nada.
+- **Netlify**: el plan gratuito tiene un tope mensual de créditos; para un sitio estático interno sobra.
+- Las respuestas y los envíos manuales salen al instante; los **recordatorios y reintentos salen dentro del minuto**
+  siguiente a su hora (el cron corre cada 60 s).
+
+### Instalarlo en OTRO proyecto de Supabase (técnico)
+
+1. Creá el proyecto en <https://supabase.com> (región cercana, ej. São Paulo).
+2. En el *SQL Editor* corré `supabase/migrations/20261005000000_crm_schema.sql`.
+3. Fijá la contraseña inicial y la dirección de la función (cambiá los dos valores):
+   ```sql
+   insert into public.settings (key, value) values
+     ('admin_hash', extensions.crypt('TU-CONTRASEÑA-LARGA', extensions.gen_salt('bf', 10))),
+     ('api_url', 'https://TU-PROYECTO.supabase.co/functions/v1/api')
+   on conflict (key) do update set value = excluded.value;
+   ```
+4. Desplegá la función **sin verificación JWT** (la API tiene su propia autenticación):
+   `supabase functions deploy api --no-verify-jwt --project-ref TU-PROYECTO` (con el CLI de Supabase, desde la carpeta `supabase/`).
+5. Corré `supabase/migrations/20261005000100_crm_cron.sql` (activa el cron de cada minuto).
+6. Actualizá `CRM_API_URL` en `netlify.toml` con la dirección de la función y publicá la interfaz.
+
+### Probarlo en tu compu sin cuentas
+
+```bash
+cd crm-evento-peques && CRM_API_URL=http://localhost:54321/functions/v1/api node scripts/build-netlify.mjs
+cd ../supabase && npm install && npm run dev      # web en :5173, API en :54321, contraseña: dev-clave
+```
+
+Usa Postgres en memoria (PGlite) con el mismo esquema y la misma API que corre en Supabase.
 
 ---
 
 ## 1. Probarlo ahora (modo simulación)
+
+Necesita Node.js 22.13 o superior (la base SQLite viene incluida en Node; no hay nada más que instalar).
 
 ```bash
 cd crm-evento-peques

@@ -1,0 +1,12 @@
+# Netlify: publica solo la interfaz del CRM (archivos estáticos). La base de datos y la API viven en Supabase.
+# Netlify > Add new site > Import an existing project > elegí este repositorio. No hace falta cambiar nada:
+# esta configuración ya trae la carpeta, el comando y la dirección de la API.
+[build]
+  base = "crm-evento-peques"
+  command = "node scripts/build-netlify.mjs"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # Dirección pública de la función `api` de Supabase (no es un secreto). Si usás otro proyecto, cambiala acá.
+  CRM_API_URL = "https://pyseyxvzaqfjrbugfqry.supabase.co/functions/v1/api"
