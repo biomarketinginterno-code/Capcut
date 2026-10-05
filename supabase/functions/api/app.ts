@@ -16,7 +16,8 @@ const CORS = {
   'Access-Control-Max-Age': '86400',
 };
 const BASE_HEADERS = { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', ...CORS };
-const MAX_BODY = 10 * 1024 * 1024; // 10 MB (planillas grandes)
+const MAX_BODY = 10 * 1024 * 1024;   // 10 MB (planillas grandes)
+const MAX_PUBLIC_BODY = 1024 * 1024; // las rutas sin sesión (login, webhook, cron) no necesitan más
 
 const json = (status, data) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...BASE_HEADERS } });
@@ -31,9 +32,19 @@ async function flush(pending) {
 // Supabase entrega la ruta como /<función>/… o /functions/v1/<función>/…; las rutas de la API son /contacts, /login, etc.
 const routePath = (pathname) => (pathname.replace(/^\/functions\/v1/, '').replace(/^\/api(?=\/|$)/, '').replace(/\/+$/, '') || '/');
 
-// cf-connecting-ip lo pone la red de Supabase (Cloudflare) y el cliente no puede falsificarlo.
-const clientIp = (req) =>
-  req.headers.get('cf-connecting-ip') || (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'unknown';
+// IPv6: cada cliente suele tener un /64 entero, así que se agrupa por ese prefijo (si no, rotar la dirección evade el límite).
+function ipBucket(ip) {
+  if (!ip.includes(':')) return ip;
+  const [head, tail = ''] = ip.split('::');
+  const a = head ? head.split(':') : [];
+  const b = tail ? tail.split(':') : [];
+  const groups = ip.includes('::') ? [...a, ...Array(Math.max(0, 8 - a.length - b.length)).fill('0'), ...b] : a;
+  return groups.slice(0, 4).map((g) => g.toLowerCase().replace(/^0+(?=.)/, '')).join(':') + '::/64';
+}
+
+// cf-connecting-ip lo pone la red de Supabase (Cloudflare) y el cliente no puede falsificarlo. X-Forwarded-For sí se puede
+// inventar, por eso no se usa: sin ese dato todos comparten un único cupo de intentos ('unknown').
+const clientIp = (req) => ipBucket((req.headers.get('cf-connecting-ip') || '').trim()) || 'unknown';
 
 export async function handle(req) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
@@ -54,12 +65,15 @@ export async function handle(req) {
 
     let bytes = new Uint8Array(0);
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      const limit = r.public ? MAX_PUBLIC_BODY : MAX_BODY;
+      if (Number(req.headers.get('content-length')) > limit) throw new HttpError(413, 'Archivo demasiado grande'); // sin leerlo
       bytes = new Uint8Array(await req.arrayBuffer());
-      if (bytes.length > MAX_BODY) throw new HttpError(413, 'Archivo demasiado grande');
+      if (bytes.length > limit) throw new HttpError(413, 'Archivo demasiado grande');
     }
     let body = {};
     if (!r.rawBody && bytes.length) {
       try { body = JSON.parse(new TextDecoder().decode(bytes)); } catch { throw new HttpError(400, 'JSON inválido'); }
+      if (body === null || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(400, 'JSON inválido');
     }
     const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
     const out = await r.handler({ req, params, query: url.searchParams, body, raw: bytes, ip: clientIp(req), defer });

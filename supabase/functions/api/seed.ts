@@ -41,7 +41,7 @@ export const DEFAULTS = [
   {
     name: 'Respuesta: SI (confirma asistencia)',
     trigger: 'keyword',
-    config: { keywords: ['si', 'sí', 'confirmo', 'confirmado', 'voy', 'vamos', '1'], set_status: 'confirmado' },
+    config: { keywords: ['si', 'sí', 'dale', 'confirmo', 'confirmado', 'voy', 'vamos', '1'], set_status: 'confirmado' },
     body: '¡Perfecto {{nombre}}! ✅ Quedaron confirmados para *{{evento}}*: {{fecha}}, {{hora}} en {{lugar}}. ¡Los esperamos! 🎈',
     template: null,
     active: true,
@@ -66,14 +66,22 @@ export const DEFAULTS = [
 
 let done = false;
 
-/** Crea las automatizaciones de arranque la primera vez (si no hay ninguna). */
+/**
+ * Crea las automatizaciones de arranque la primera vez. Queda una marca (settings.seeded): si más adelante se borran
+ * todas, no reaparecen, y si dos instancias arrancan a la vez (arranque en frío) solo una siembra (cerrojo de Postgres).
+ */
 export async function ensureSeed() {
   if (done) return false;
-  const n = await db.val('select count(*)::int from automations');
+  const seeded = await db.tx(async () => {
+    await db.query('select pg_advisory_xact_lock(7101)');
+    if (await db.val("select 1 from settings where key = 'seeded'")) return false;
+    const n = await db.val('select count(*)::int from automations'); // bases anteriores a la marca: ya estaban sembradas
+    if (n === 0) for (const a of DEFAULTS) await automations.create(a);
+    await db.query("insert into settings (key, value) values ('seeded', '1') on conflict (key) do nothing");
+    return n === 0;
+  });
   done = true;
-  if (n > 0) return false;
-  for (const a of DEFAULTS) await automations.create(a);
-  return true;
+  return seeded;
 }
 
 export const resetSeedFlag = () => { done = false; };

@@ -60,12 +60,30 @@ Seguí las secciones **2.1, 2.3, 2.4 y 2.5** más abajo, con estas diferencias:
   si ocurriera se reactiva con un clic en el panel de Supabase (*Resume project*) y no se pierde nada.
 - **Netlify**: el plan gratuito tiene un tope mensual de créditos; para un sitio estático interno sobra.
 - Las respuestas y los envíos manuales salen al instante; los **recordatorios y reintentos salen dentro del minuto**
-  siguiente a su hora (el cron corre cada 60 s).
+  siguiente a su hora (el cron corre cada 60 s). Cada pasada envía como mucho **150 mensajes**: una campaña de 600 familias
+  sale en unos 4 minutos (la función serverless tiene poco tiempo de CPU por ejecución).
+- La interfaz consulta novedades solo mientras la pestaña está a la vista y cada varios segundos, para no gastar el cupo mensual de llamadas.
+- Si el cron deja de llegar, el panel lo avisa (banner amarillo). Si WhatsApp rechaza **todos** los envíos (token vencido,
+  cuenta bloqueada, falta de pago) los mensajes **quedan en espera** —no se descartan—, se avisa en rojo en el panel y
+  salen solos al arreglarlo.
+
+### Bajas y consentimiento
+
+- **BAJA siempre funciona**: el CRM la reconoce por sí mismo («BAJA», «STOP», «no me escribas más», «dejen de escribirme»…),
+  sin depender de ninguna automatización (apagar o borrar la automatización de baja solo cambia el texto de confirmación).
+- Las bajas quedan en una **lista aparte**: aunque borres el contacto o vuelvas a importar la planilla, esa persona entra
+  dada de baja. Volver a habilitarla es una decisión explícita (**Contactos → Editar** o acción masiva *Volver a habilitar*).
+- Cada contacto guarda **cuándo y cómo** se registró su consentimiento (al importar con la casilla tildada, o cuando escribió por WhatsApp).
+- Las respuestas por palabra clave («SI», «NO», «1», «2»…) solo se aplican a mensajes cortos y sin signo de pregunta;
+  un mensaje largo o con dudas («Voy a consultar», «2 nenes») lo lee una persona. Las opciones numéricas valen solo solas.
+- Si falta la fecha, la hora o el lugar del evento en **Ajustes**, los mensajes que los usan **esperan** (no salen con huecos)
+  y se envían solos al completarlos.
 
 ### Instalarlo en OTRO proyecto de Supabase (técnico)
 
 1. Creá el proyecto en <https://supabase.com> (región cercana, ej. São Paulo).
-2. En el *SQL Editor* corré `supabase/migrations/20261005000000_crm_schema.sql`.
+2. En el *SQL Editor* corré, en orden, `supabase/migrations/20261005000000_crm_schema.sql` y
+   `supabase/migrations/20261005000200_crm_hardening.sql` (lista de bajas y registro del consentimiento).
 3. Fijá la contraseña inicial y la dirección de la función (cambiá los dos valores):
    ```sql
    insert into public.settings (key, value) values
@@ -74,8 +92,10 @@ Seguí las secciones **2.1, 2.3, 2.4 y 2.5** más abajo, con estas diferencias:
    on conflict (key) do update set value = excluded.value;
    ```
 4. Desplegá la función **sin verificación JWT** (la API tiene su propia autenticación):
-   `supabase functions deploy api --no-verify-jwt --project-ref TU-PROYECTO` (con el CLI de Supabase, desde la carpeta `supabase/`).
-5. Corré `supabase/migrations/20261005000100_crm_cron.sql` (activa el cron de cada minuto).
+   `supabase functions deploy api --project-ref TU-PROYECTO` (con el CLI de Supabase, desde la carpeta `supabase/`;
+   `supabase/config.toml` ya trae `verify_jwt = false`). Sin eso, el webhook de Meta y el cron recibirían un 401.
+5. Corré `supabase/migrations/20261005000100_crm_cron.sql` y después `supabase/migrations/20261005000300_crm_cron_fix.sql`
+   (activan el cron de cada minuto y su limpieza).
 6. Actualizá `CRM_API_URL` en `netlify.toml` con la dirección de la función y publicá la interfaz.
 
 ### Probarlo en tu compu sin cuentas
@@ -250,11 +270,15 @@ Copiá periódicamente `data/crm.sqlite` (con el servidor detenido) y/o usá **C
 ### Tests
 
 ```bash
-npm test
+npm test                                   # versión con servidor propio (34 pruebas)
+cd ../supabase && npm install && npm test  # versión en la nube (Supabase), contra Postgres en memoria
+cd ../supabase && npm run test:pg          # la misma batería con el cliente de Postgres que usa Supabase en producción
 ```
 
-34 pruebas: normalización de teléfonos, importación, cola y ventana de 24 h, automatizaciones, y una prueba de
+Servidor propio (34 pruebas): normalización de teléfonos, importación, cola y ventana de 24 h, automatizaciones, y una prueba de
 integración HTTP contra un Meta simulado (firma del webhook, formato de los pedidos a la Cloud API, reintentos y errores).
+Nube (64 pruebas): lo anterior más acceso y límite de intentos (incluso con pedidos simultáneos), webhook que no pierde bajas,
+lista de supresión, importación y acciones masivas por lotes, errores generales de WhatsApp y tope de envíos por pasada.
 
 ### Estructura
 

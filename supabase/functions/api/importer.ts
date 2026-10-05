@@ -1,9 +1,9 @@
 // @ts-nocheck
 import { db, getSettings, HttpError, placeholders } from './db.ts';
 import * as contacts from './contacts.ts';
-import { bus } from './bus.ts';
 import { parseDelimited } from './csv.ts';
 import { normalizePhone } from './phone.ts';
+import * as automations from './automations.ts';
 
 const FIELDS = ['name', 'phone', 'email', 'child_name', 'child_age', 'kids_count', 'tags', 'notes'];
 
@@ -34,7 +34,7 @@ export function guessMapping(headers) {
 
 // Planilla sin encabezados: la columna con más teléfonos válidos es el teléfono; la primera de texto, el nombre.
 function guessMappingByContent(rows, phoneOpts) {
-  const cols = Math.max(...rows.map((r) => r.length));
+  const cols = rows.reduce((m, r) => Math.max(m, r.length), 0); // (Math.max(...) revienta con cientos de miles de filas)
   let phoneCol = -1;
   let best = 0;
   for (let c = 0; c < cols; c++) {
@@ -98,7 +98,7 @@ async function analyze(text, mappingIn, hasHeaderIn) {
     if (seen.has(p.key)) return { line, data, state: 'duplicate', reason: 'Repetido en el archivo' };
     seen.add(p.key);
     if (existing.has(p.key)) return { line, data, state: 'duplicate', reason: `Ya existe (${existing.get(p.key)})` };
-    return { line, data: { ...data, phone: p.phone }, state: 'ok' };
+    return { line, data: { ...data, phone: p.phone }, key: p.key, state: 'ok' };
   });
   return { headers, mapping: map, rows, hasHeader };
 }
@@ -122,22 +122,38 @@ export async function preview(text, mapping, hasHeader) {
   return summarize(await analyze(text, mapping, hasHeader));
 }
 
-/** Importa las filas válidas (todo o nada). `welcome` dispara las automatizaciones de "contacto nuevo" para cada una. */
+/**
+ * Importa las filas válidas (todo o nada), en tandas: una sentencia INSERT cada 200 contactos, no una consulta por fila
+ * (la función serverless tiene un par de segundos de CPU). Los teléfonos de quienes ya pidieron la baja entran dados de baja.
+ * `welcome` dispara las automatizaciones de "contacto nuevo" para los que no están de baja.
+ */
 export async function commit(text, mapping, { tags = [], source = 'importación', consent = false, welcome = false, hasHeader } = {}) {
   if (!consent) throw new HttpError(400, 'Tenés que confirmar que estas personas aceptaron recibir mensajes por WhatsApp');
   const a = await analyze(text, mapping, hasHeader);
+  const ok = a.rows.filter((r) => r.state === 'ok');
+  const suppressed = await contacts.suppressedKeys(ok.map((r) => r.key));
+  const baseTags = contacts.normalizeTags(tags);
+  const note = `Importación (${String(source).slice(0, 80)}): el responsable confirmó el consentimiento`;
   const created = [];
   await db.tx(async () => {
-    for (const r of a.rows) {
-      if (r.state !== 'ok') continue;
-      created.push(await contacts.create({
-        ...r.data,
-        name: r.data.name || 'Sin nombre',
-        tags: [...contacts.normalizeTags(tags), ...contacts.normalizeTags(r.data.tags)],
-        source,
-      }, { emit: false }));
+    for (let i = 0; i < ok.length; i += 200) {
+      const chunk = ok.slice(i, i + 200);
+      const params = [];
+      const values = chunk.map((r) => {
+        const c = contacts.clean({ ...r.data, name: r.data.name || 'Sin nombre', source });
+        const rowTags = contacts.tagsToDb([...baseTags, ...contacts.normalizeTags(r.data.tags)]);
+        params.push(c.name, r.data.phone, r.key, c.email, c.child_name, c.child_age, c.kids_count, rowTags, c.notes, c.source, suppressed.has(r.key), note);
+        const n = params.length - 12;
+        return `($${n + 1},$${n + 2},$${n + 3},$${n + 4},$${n + 5},$${n + 6},$${n + 7},'nuevo',$${n + 8},$${n + 9},$${n + 10},$${n + 11},now(),$${n + 12})`;
+      });
+      const rows = await db.query(
+        `insert into contacts (name, phone, phone_key, email, child_name, child_age, kids_count, status, tags, notes, source, opted_out, consent_at, consent_note)
+         values ${values.join(',')} on conflict (phone_key) do nothing returning *`,
+        params,
+      );
+      created.push(...rows.map(contacts.toApi));
     }
   });
-  if (welcome) for (const c of created) await bus.fire('contact:created', c);
+  if (welcome) await automations.onContactsCreated(created);
   return { created: created.length, skipped: a.rows.length - created.length };
 }

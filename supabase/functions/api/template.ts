@@ -16,8 +16,10 @@ const VARIABLES = [
 ];
 
 function firstName(full) {
-  const w = String(full || '').trim().split(/\s+/)[0] || '';
-  return w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : '';
+  const raw = String(full || '').trim();
+  if (!raw || raw === 'Sin nombre') return 'familia'; // contacto que escribió sin perfil: «¡Hola familia!» y no «¡Hola Sin!»
+  const w = raw.split(/\s+/)[0] || '';
+  return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
 }
 
 function contactVars(contact, settings) {
@@ -35,6 +37,16 @@ function contactVars(contact, settings) {
     direccion: settings.event_address || '',
   };
 }
+
+// Datos del evento sin completar: el mensaje no debe salir con huecos («confirmados para X: , a las  en .»).
+const EVENT_VARS = ['fecha', 'hora', 'lugar'];
+
+/** Variables del evento que el texto usa y están vacías (en Ajustes falta cargarlas). */
+function missingEventVars(names, vars) {
+  return EVENT_VARS.filter((k) => names.includes(k) && !vars[k]);
+}
+
+const varsIn = (text) => [...String(text ?? '').matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((m) => m[1]);
 
 const render = (text, vars) =>
   String(text ?? '').replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (vars[k] === undefined ? '' : vars[k]));
@@ -63,4 +75,4 @@ function cleanTemplate(t) {
   };
 }
 
-export { VARIABLES, contactVars, render, renderTemplate, cleanTemplate, firstName };
+export { VARIABLES, contactVars, render, renderTemplate, cleanTemplate, firstName, missingEventVars, varsIn };

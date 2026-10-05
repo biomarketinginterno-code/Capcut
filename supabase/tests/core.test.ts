@@ -107,7 +107,7 @@ test('cola: campaña a un segmento, respeta bajas y la ventana de 24 h', async (
   await contacts.setOptOut(c.id, true);
   await openWindow(a.id); // solo Ana respondió hace poco
 
-  assert.deepEqual(await campaigns.preview({ statuses: ['confirmado'] }), { eligible: 2, excluded_optout: 1 });
+  assert.deepEqual(await campaigns.preview({ statuses: ['confirmado'] }), { eligible: 2, excluded_optout: 1, outside_window: 1 });
   await assert.rejects(campaigns.create({ name: 'Vacía', body: 'hola', filter: { statuses: ['asistio'] } }), (e) => e.status === 400);
 
   // sin plantilla: Ana (dentro de la ventana) recibe, Beto (fuera) falla con explicación
@@ -180,6 +180,7 @@ test('palabras clave: gana la más larga, cambia estado y responde', async () =>
   assert.equal(await automations.matchKeyword('Simón dice hola'), null, '"si" no coincide con "simón"');
   assert.equal(await automations.matchKeyword('a qué hora es?'), null);
 
+  await saveSettings({ event_at_local: '2099-11-15T16:00', event_place: 'Plaza' });
   await inbound.receive({ fromPhone: '5492235550001', text: 'SI', waId: 'in1' });
   assert.equal((await contacts.get(a.id)).status, 'confirmado');
   assert.equal((await contacts.get(a.id)).unread, 1);
@@ -269,4 +270,119 @@ test('validación de automatizaciones', async () => {
   const edited = await automations.update(k.id, { body: 'Te mandamos la info' });
   assert.deepEqual(edited.config.keywords, ['info', 'informacion'], 'editar el texto no pierde la configuración');
   await automations.remove(k.id);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Endurecimiento (revisión independiente)
+// ---------------------------------------------------------------------------------------------
+
+test('baja: frases naturales sí, preguntas y respuestas normales no', () => {
+  for (const t of ['BAJA', 'baja', 'Stop', 'STOP!', 'Baja por favor', 'No me escribas más', 'no me escriban mas', 'No quiero recibir más mensajes',
+    'Por favor dejen de escribirme', 'sacame de la lista', 'Quiero darme de baja', 'cancelar suscripción', 'Basta']) {
+    assert.equal(automations.isOptOut(t), true, t);
+  }
+  for (const t of ['Sí', 'No puedo ir', 'No voy a poder', 'Hola', 'a qué hora es?', '2 nenes', 'Van a bajar la música?', 'Gracias', '']) {
+    assert.equal(automations.isOptOut(t), false, t || '(vacío)');
+  }
+});
+
+test('palabras clave: sin falsos positivos por prefijo, y entiende «Siii»', async () => {
+  const name = async (t) => (await automations.matchKeyword(t))?.name;
+  assert.equal(await name('2 nenes'), undefined, '«2 nenes» no es la opción 2');
+  assert.equal(await name('1 nene y 1 nena'), undefined);
+  assert.equal(await name('Voy a consultar'), undefined);
+  assert.equal(await name('No sé todavía'), undefined);
+  assert.equal(await name('Si necesito llevar algo?'), undefined, 'una pregunta la lee una persona');
+  assert.equal(await name('Sí, estuvimos hablando con la familia y ahora vemos'), undefined, 'mensaje largo');
+  assert.equal(await name('Siii'), 'Respuesta: SI (confirma asistencia)');
+  assert.equal(await name('Dale!'), 'Respuesta: SI (confirma asistencia)');
+  assert.equal(await name('2'), 'Respuesta: NO (no puede asistir)');
+  assert.equal(await name('Sí, vamos'), 'Respuesta: SI (confirma asistencia)');
+});
+
+test('un «sí» después del evento no cambia a quien ya figura como asistió', async () => {
+  const a = await contacts.create({ name: 'Ana', phone: '2235550001', status: 'asistio' });
+  await inbound.receive({ fromPhone: '5492235550001', text: 'Sí, estuvo genial', waId: 'g1' });
+  assert.equal((await contacts.get(a.id)).status, 'asistio');
+});
+
+test('importación masiva por tandas: 600 filas, números extranjeros, y quien pidió la baja no se re-suscribe', async () => {
+  const gone = await contacts.create({ name: 'Baja Previa', phone: '2235559999' });
+  await contacts.setOptOut(gone.id, true);
+  await contacts.remove(gone.id); // el contacto desaparece, la baja queda
+  const rows = Array.from({ length: 600 }, (_, i) => `Familia ${i},223${String(5000000 + i)}`);
+  rows.push('Uruguaya,+598 99 123 456', 'Baja Previa,223 555 9999');
+  const welcome = (await automations.list()).find((a) => a.trigger === 'contact_created');
+  await automations.setActive(welcome.id, true);
+  const r = await importer.commit('Nombre,Teléfono\n' + rows.join('\n'), undefined, { consent: true, welcome: true, tags: ['evento'] });
+  assert.deepEqual(r, { created: 602, skipped: 0 });
+  assert.equal((await contacts.list({ search: 'uruguaya' }))[0].phone, '59899123456', 'el +598 se respeta (antes la importación fallaba entera)');
+  const baja = (await contacts.list({ search: 'baja previa' }))[0];
+  assert.equal(baja.opted_out, true);
+  assert.equal(await outboxCount(), 601, 'la bienvenida sale para todos menos para quien pidió la baja');
+  const c = await db.one("select consent_at, consent_note, tags from contacts where name = 'Familia 5'");
+  assert.ok(c.consent_at, 'se registra cuándo se confirmó el consentimiento');
+  assert.match(c.consent_note, /consentimiento/);
+  assert.equal(c.tags, ',evento,');
+});
+
+test('acciones masivas por lotes: etiquetas, estado (dispara automatizaciones), baja y borrado de 1200 contactos', async () => {
+  const values = Array.from({ length: 1200 }, (_, i) => `('M${i}', '549223${String(7000000 + i)}', '223${String(7000000 + i)}', ',a,')`).join(',');
+  await db.query(`insert into contacts (name, phone, phone_key, tags) values ${values}`);
+  const ids = (await db.query('select id from contacts order by id')).map((r) => r.id);
+
+  assert.equal(await contacts.bulk(ids, 'add_tag', 'grupo-b'), 1200);
+  assert.equal(await db.val("select count(*)::int from contacts where tags = ',a,grupo-b,'"), 1200);
+  await contacts.bulk(ids, 'remove_tag', 'a');
+  assert.equal(await db.val("select count(*)::int from contacts where tags = ',grupo-b,'"), 1200);
+
+  const thanks = await automations.create({ name: 'Al confirmar', trigger: 'status_changed', config: { status: 'confirmado' }, body: 'Gracias {{nombre}}', active: true });
+  assert.equal(await contacts.bulk(ids, 'status', 'confirmado'), 1200);
+  assert.equal(await db.val('select count(*)::int from outbox where automation_id = $1', [thanks.id]), 1200);
+  assert.equal(await contacts.bulk(ids, 'status', 'confirmado'), 1200);
+  assert.equal(await db.val('select count(*)::int from outbox where automation_id = $1', [thanks.id]), 1200, 'una sola vez por contacto');
+  await assert.rejects(contacts.bulk(ids, 'status', 'inventado'), (e) => e.status === 400);
+
+  await contacts.bulk(ids.slice(0, 10), 'optout');
+  assert.equal(await db.val('select count(*)::int from suppressions'), 10);
+  await contacts.bulk(ids.slice(0, 4), 'optin');
+  assert.equal(await db.val('select count(*)::int from suppressions'), 6);
+  assert.equal(await contacts.bulk(ids, 'delete'), 1200);
+  assert.equal(await db.val('select count(*)::int from contacts'), 0);
+  assert.equal(await db.val('select count(*)::int from suppressions'), 6, 'borrar los contactos no borra las bajas');
+});
+
+test('apagar o borrar una automatización cancela lo que dejó encolado', async () => {
+  const welcome = (await automations.list()).find((a) => a.trigger === 'contact_created');
+  await automations.update(welcome.id, { active: true, config: { delay_minutes: 60 } });
+  await contacts.create({ name: 'Ana', phone: '2235550001' });
+  await contacts.create({ name: 'Beto', phone: '2235550002' });
+  assert.equal(await db.val("select count(*)::int from outbox where status = 'pending'"), 2);
+  await automations.setActive(welcome.id, false);
+  assert.equal(await db.val("select count(*)::int from outbox where status = 'pending'"), 0);
+  assert.equal(await db.val("select count(*)::int from outbox where status = 'cancelled'"), 2);
+
+  await automations.setActive(welcome.id, true);
+  await contacts.create({ name: 'Cami', phone: '2235550003' });
+  await automations.remove(welcome.id);
+  assert.equal(await db.val("select count(*)::int from outbox where status = 'pending'"), 0);
+});
+
+test('recordatorios: una sola sentencia por automatización, y un error en una no frena a las demás', async () => {
+  await saveSettings({ event_at_local: '2099-11-15T16:00', event_place: 'Plaza' });
+  const eventAt = Date.parse('2099-11-15T19:00:00Z'); // 16:00 en Buenos Aires
+  await contacts.create({ name: 'Ana', phone: '2235550001', status: 'confirmado' });
+  const [broken] = (await automations.list()).filter((a) => a.trigger === 'before_event');
+  await automations.setActive(broken.id, true);
+  await db.query("update automations set config = '{\"offset_minutes\": 120, \"filter\": {\"statuses\": \"x\"}}'::jsonb where id = $1", [broken.id]); // config rota a propósito (primera en el orden)
+  await automations.create({ name: 'Sana', trigger: 'before_event', config: { offset_minutes: 120 }, body: 'x', active: true });
+  const now = eventAt - 119 * 60000;
+  assert.equal(await automations.schedulerTick(now), 1, 'la sana se encola aunque la anterior falle');
+  assert.equal(await automations.schedulerTick(now + 60000), 0, 'y no se repite');
+});
+
+test('mensajes de contactos sin nombre saludan «familia» y no «Sin»', async () => {
+  const { contactVars } = await import('../functions/api/template.ts');
+  assert.equal(contactVars({ name: 'Sin nombre' }, {}).nombre, 'familia');
+  assert.equal(contactVars({ name: 'laura gómez' }, {}).nombre, 'Laura');
 });

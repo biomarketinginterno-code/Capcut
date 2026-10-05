@@ -19,7 +19,14 @@ const eligible = (filter) => contacts.ids({ ...cleanFilter(filter), optedOut: 'e
 export async function preview(filter) {
   const ids = await eligible(filter);
   const all = (await contacts.ids(cleanFilter(filter))).length;
-  return { eligible: ids.length, excluded_optout: all - ids.length };
+  // sin plantilla, el texto libre solo llega a quienes escribieron en las últimas 24 h
+  let outside = 0;
+  for (let i = 0; i < ids.length; i += 1000) {
+    const chunk = ids.slice(i, i + 1000);
+    outside += (await db.val(
+      `select count(*)::int from contacts where id in (${placeholders(chunk.length)}) and (last_inbound_at is null or last_inbound_at < now() - interval '24 hours')`, chunk)) || 0;
+  }
+  return { eligible: ids.length, excluded_optout: all - ids.length, outside_window: outside };
 }
 
 async function stats(id) {

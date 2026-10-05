@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { db, nowIso, getSettings, saveSettings, getRaw, env, HttpError } from './db.ts';
+import { db, nowIso, getSettings, saveSettings, getRaw, setRaw, env, HttpError } from './db.ts';
 import * as contacts from './contacts.ts';
 import * as automations from './automations.ts';
 import * as campaigns from './campaigns.ts';
@@ -25,6 +25,15 @@ const filterFromQuery = (q) => ({
   tags: q.get('tag') ? q.get('tag').split(',') : [],
   optedOut: q.get('optout') === 'only' ? 'only' : q.get('optout') === 'exclude' ? 'exclude' : undefined,
 });
+
+/** «2026-11-15T16:00» con fecha y hora que existen (rechaza 2026-02-31 o 25:61). */
+function validLocalDateTime(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(String(v));
+  if (!m) return false;
+  const [y, mo, d, h, mi] = m.slice(1).map(Number);
+  const t = new Date(Date.UTC(y, mo - 1, d, h, mi));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d && h < 24 && mi < 60;
+}
 
 function validTimezone(tz) {
   try { new Intl.DateTimeFormat('es-AR', { timeZone: tz }); return true; } catch { return false; }
@@ -59,6 +68,8 @@ async function stats() {
     messages_7d: msg,
     replies_7d: await db.val("select count(*)::int from messages where direction = 'in' and created_at >= $1::timestamptz", [week]),
     pending: await db.val("select count(*)::int from outbox where status in ('pending','sending')"),
+    scheduler: { last_tick_at: (await getRaw('cron_last_tick')) || null },
+    send_alert: await wa.sendAlert(),
     event: { name: s.event_name, place: s.event_place, at: at ? at.toISOString() : null, local: s.event_at_local, timezone: s.timezone },
   };
 }
@@ -85,7 +96,7 @@ route('GET', '/', () => ({ ok: true, service: 'crm-peques' }), { public: true })
 route('GET', '/session', async ({ req }) => ({ authenticated: await auth.verifyToken(auth.bearer(req)) }), { public: true });
 route('POST', '/login', async ({ body, ip }) => ({ ok: true, token: await auth.login(body.password, ip) }), { public: true });
 route('POST', '/logout', () => ({ ok: true }), { public: true }); // el token vive en el navegador: salir = borrarlo
-route('PUT', '/password', async ({ body }) => { await auth.changePassword(body.current, body.next); return { ok: true, token: await auth.makeToken() }; });
+route('PUT', '/password', async ({ body, ip }) => { await auth.changePassword(body.current, body.next, ip); return { ok: true, token: await auth.makeToken() }; });
 
 // ---- meta / panel ----
 route('GET', '/meta', async () => ({
@@ -102,7 +113,7 @@ route('GET', '/settings', () => getSettings());
 route('PUT', '/settings', async ({ body }) => {
   const patch = {};
   if (body.event_at_local !== undefined) {
-    if (body.event_at_local && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(body.event_at_local)) throw new HttpError(400, 'Fecha y hora del evento inválidas');
+    if (body.event_at_local && !validLocalDateTime(body.event_at_local)) throw new HttpError(400, 'Fecha y hora del evento inválidas');
     patch.event_at_local = body.event_at_local;
   }
   if (body.timezone !== undefined) {
@@ -127,7 +138,7 @@ route('POST', '/contacts/bulk', async ({ body, defer }) => {
   return { affected };
 });
 route('GET', '/contacts/export.csv', async ({ query }) => {
-  const rows = (await contacts.list(filterFromQuery(query))).map((c) => [
+  const rows = (await contacts.list(filterFromQuery(query), Infinity)).map((c) => [
     c.name, c.phone, c.email, c.child_name, c.child_age, c.kids_count,
     contacts.STATUSES.find((s) => s.id === c.status)?.label || c.status,
     c.tags.join(', '), c.notes, c.opted_out ? 'Sí' : '', c.source, String(c.created_at).slice(0, 10),
@@ -225,6 +236,9 @@ route('POST', '/whatsapp/test', async ({ body }) => {
   const s = await getSettings();
   const p = normalizePhone(body.phone, { country: s.default_country, area: s.default_area });
   if (!p.valid) throw new HttpError(400, `Teléfono inválido: ${p.reason}`);
+  if (await db.val('select 1 from contacts where phone_key = $1 and opted_out = true union select 1 from suppressions where phone_key = $1', [p.key])) {
+    throw new HttpError(409, 'Ese número pidió no recibir mensajes: no se le puede enviar ni siquiera una prueba.');
+  }
   const provider = await wa.getProvider();
   if (provider.mode !== 'cloud') return { ok: true, simulated: true, message: 'Modo simulación: no se envió nada real.' };
   try {
@@ -251,12 +265,17 @@ route('POST', '/webhook/whatsapp', async ({ raw: bytes, req, defer }) => {
   if (!(await wa.verifySignature(bytes, req.headers.get('x-hub-signature-256'), cfg.appSecret))) throw new HttpError(401, 'Firma inválida');
   let payload;
   try { payload = JSON.parse(new TextDecoder().decode(bytes)); } catch { throw new HttpError(400, 'JSON inválido'); }
+  let result;
   try {
-    await inbound.processWebhook(payload);
-    defer(queue.tick());
+    result = await inbound.processWebhook(payload);
   } catch (e) {
-    console.error('[webhook] error procesando:', e); // se responde 200 igual para que Meta no reintente en bucle
+    console.error('[webhook] error procesando:', e);
+    result = { errors: 1 };
   }
+  defer(queue.tick());
+  // Si algo no se pudo guardar (una baja, por ejemplo) se responde con error: Meta reintenta durante días y lo que ya
+  // se guardó se descarta como repetido. Responder 200 acá lo perdería para siempre.
+  if (result.errors) throw new HttpError(500, 'No se pudo procesar el mensaje; Meta lo reenviará');
   return raw(200, { 'Content-Type': 'text/plain' }, 'EVENT_RECEIVED');
 }, { public: true, rawBody: true });
 
@@ -265,7 +284,10 @@ route('POST', '/internal/tick', async ({ req }) => {
   const key = req.headers.get('x-cron-secret') || '';
   const secret = await getRaw('cron_secret');
   if (!secret || !wa.safeEqual(key, secret)) throw new HttpError(401, 'No autorizado');
-  const queued = await automations.schedulerTick();
-  const sent = await queue.tick();
+  await setRaw('cron_last_tick', nowIso()); // latido: el panel avisa si pasan minutos sin que llegue
+  await db.query("delete from login_attempts where until_at < now() - interval '1 day'"); // limpieza de bloqueos viejos
+  let queued = 0;
+  try { queued = await automations.schedulerTick(); } catch (e) { console.error('[cron] recordatorios:', e); }
+  const sent = await queue.tick({ budgetMs: 25000 }); // el cron espera hasta 55 s la respuesta (pg_net)
   return { ok: true, queued, sent };
 }, { public: true });

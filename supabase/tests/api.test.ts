@@ -163,6 +163,7 @@ test('webhook: rechaza mensajes sin firma o con firma falsa', async () => {
 });
 
 test('webhook: respuesta "SI" confirma, y el CRM contesta por la Cloud API con el formato correcto', async () => {
+  await api('PUT', '/settings', { event_name: 'Fiesta Peques', event_at_local: '2099-11-15T16:00', event_place: 'Plaza Mitre' }); // sin estos datos el mensaje queda en espera
   metaCalls.length = 0;
   const res = await webhook(inboundText('5492235550001', 'Sí!', 'wamid.IN1'));
   assert.equal(res.status, 200);
@@ -319,4 +320,230 @@ test('seguridad: las tablas no son legibles por la API pública de Supabase (RLS
   const rows = await db.query("select relname, relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r'");
   assert.ok(rows.length >= 8);
   assert.deepEqual(rows.filter((r) => !r.relrowsecurity).map((r) => r.relname), [], 'todas con RLS');
+});
+
+// ---------------------------------------------------------------------------------------------
+// Endurecimiento (revisión independiente)
+// ---------------------------------------------------------------------------------------------
+
+const EVENT = { event_name: 'Fiesta Peques', event_at_local: '2099-11-15T16:00', event_place: 'Plaza Mitre' };
+const cronTick = async () => api('POST', '/internal/tick', {}, { auth: false, headers: { 'x-cron-secret': await db.val("select value from settings where key = 'cron_secret'") } });
+const batch = (...messages) => ({ entry: [{ changes: [{ value: { contacts: [], messages } }] }] });
+const msg = (from, text, id) => ({ from, id, type: 'text', text: { body: text } });
+
+test('login: 30 intentos simultáneos no esquivan el límite (solo los primeros 8 prueban la contraseña)', async () => {
+  await reset();
+  const ip = { 'cf-connecting-ip': '203.0.113.77' };
+  const results = await Promise.all(Array.from({ length: 30 }, (_, i) => api('POST', '/login', { password: 'x' + i }, { auth: false, headers: ip })));
+  const count = (st) => results.filter((r) => r.status === st).length;
+  assert.equal(count(401), 8);
+  assert.equal(count(429), 22);
+  assert.equal((await api('POST', '/login', { password: 'nueva-clave-segura' }, { auth: false, headers: ip })).status, 429, 'bloqueado aunque la contraseña sea la correcta');
+  const until = await db.val("select until_at from login_attempts where ip = '203.0.113.77'");
+  await api('POST', '/login', { password: 'otra' }, { auth: false, headers: ip });
+  assert.equal(await db.val("select until_at from login_attempts where ip = '203.0.113.77'"), until, 'seguir insistiendo no extiende el bloqueo');
+});
+
+test('login: las direcciones IPv6 de un mismo /64 comparten el cupo, y X-Forwarded-For no sirve para evadirlo', async () => {
+  await reset();
+  for (let i = 0; i < 8; i++) await api('POST', '/login', { password: 'mal' }, { auth: false, headers: { 'cf-connecting-ip': `2001:db8:1:2:${i}::1` } });
+  assert.equal((await api('POST', '/login', { password: 'mal' }, { auth: false, headers: { 'cf-connecting-ip': '2001:0db8:0001:0002:ffff::9' } })).status, 429);
+  for (let i = 0; i < 8; i++) await api('POST', '/login', { password: 'mal' }, { auth: false, headers: { 'x-forwarded-for': `10.0.0.${i}` } });
+  assert.equal((await api('POST', '/login', { password: 'mal' }, { auth: false, headers: { 'x-forwarded-for': '10.9.9.9' } })).status, 429, 'sin cf-connecting-ip todos comparten un cupo');
+});
+
+test('entradas raras: JSON "null" o con forma inválida da 400, y un cuerpo enorme en una ruta pública 413', async () => {
+  await reset();
+  assert.equal((await api('POST', '/login', undefined, { rawBody: 'null', auth: false })).status, 400);
+  assert.equal((await api('POST', '/login', undefined, { rawBody: '[1,2]', auth: false })).status, 400);
+  assert.equal((await api('POST', '/login', undefined, { rawBody: '"x"', auth: false })).status, 400);
+  assert.equal((await api('POST', '/login', undefined, { rawBody: 'x'.repeat(1.2 * 1024 * 1024), auth: false })).status, 413);
+});
+
+test('baja: funciona aunque se borre la automatización de BAJA, entiende frases naturales y sobrevive al borrado del contacto', async () => {
+  await reset();
+  await api('PUT', '/settings', EVENT);
+  for (const a of (await api('GET', '/automations')).json.filter((x) => x.config.opt_out)) await api('DELETE', `/automations/${a.id}`);
+  const ana = (await api('POST', '/contacts', { name: 'Ana', phone: '2235550001' })).json;
+  metaCalls.length = 0;
+  assert.equal((await webhook(inboundText('5492235550001', 'No me escribas más', 'wamid.B1'))).status, 200);
+  const c = (await api('GET', `/contacts/${ana.id}`)).json;
+  assert.equal(c.opted_out, true);
+  assert.equal(c.status, 'nuevo', '«No me escribas más» no se toma como un NO asistirá');
+  assert.match(metaCalls[0].body.text.body, /no te vamos a escribir/, 'se confirma la baja con el texto de fábrica');
+
+  // quien dio de baja no vuelve a entrar por reimportar la planilla
+  assert.equal((await api('DELETE', `/contacts/${ana.id}`)).status, 200);
+  assert.equal((await api('POST', '/import/commit', { text: 'Nombre,Teléfono\nAna,2235550001', consent: true })).json.created, 1);
+  const again = (await api('GET', '/contacts')).json[0];
+  assert.equal(again.opted_out, true, 'reimportar no la vuelve a suscribir');
+  const manual = await api('POST', '/contacts', { name: 'Otra', phone: '2235550002' });
+  await api('DELETE', `/contacts/${manual.json.id}`);
+
+  // volver a habilitarla es una decisión explícita y limpia la lista
+  assert.equal((await api('PUT', `/contacts/${again.id}`, { opted_out: false })).json.opted_out, false);
+  assert.equal(await db.val('select count(*)::int from suppressions'), 0);
+});
+
+test('webhook: si algo falla se responde 500 (Meta reintenta), un mensaje roto no tira a los demás y la baja no se pierde', async () => {
+  await reset();
+  await api('PUT', '/settings', EVENT);
+  const a = (await api('POST', '/contacts', { name: 'Ana', phone: '2235550001' })).json;
+  await api('POST', '/contacts', { name: 'Beto', phone: '2235550002' });
+  await db.query(`create function test_fail_optout() returns trigger language plpgsql as $$
+    begin if new.opted_out and not old.opted_out and new.phone_key = '2235550001' then raise exception 'falla simulada'; end if; return new; end $$`);
+  await db.query('create trigger test_fail before update on contacts for each row execute function test_fail_optout()');
+  try {
+    const payload = batch(msg('5492235550001', 'BAJA', 'wamid.P1'), msg('5492235550002', 'hola', 'wamid.P2'));
+    assert.equal((await webhook(payload)).status, 500);
+    assert.equal(await db.val("select count(*)::int from messages where wa_id = 'wamid.P2'"), 1, 'el mensaje siguiente sí se guardó');
+    assert.equal(await db.val("select count(*)::int from messages where wa_id = 'wamid.P1'"), 0, 'la baja no quedó a medias: se reintenta entera');
+    assert.equal((await api('GET', `/contacts/${a.id}`)).json.opted_out, false);
+
+    await db.query('drop trigger test_fail on contacts'); // la base se recupera y Meta reenvía
+    assert.equal((await webhook(payload)).status, 200);
+    assert.equal((await api('GET', `/contacts/${a.id}`)).json.opted_out, true, 'la baja se aplicó en el reintento');
+    assert.equal(await db.val("select count(*)::int from messages where wa_id = 'wamid.P2'"), 1, 'lo ya guardado no se duplica');
+  } finally {
+    await db.query('drop trigger if exists test_fail on contacts');
+    await db.query('drop function if exists test_fail_optout()');
+  }
+});
+
+test('webhook: un mensaje sin número (usuario de WhatsApp sin teléfono) se ignora y no se mezcla con nadie', async () => {
+  await reset();
+  const noPhone = batch({ id: 'wamid.U1', type: 'text', text: { body: 'hola' }, from_user_id: 'US.123' }, { from: '', id: 'wamid.U2', type: 'text', text: { body: 'chau' } });
+  assert.equal((await webhook(noPhone)).status, 200);
+  assert.equal(await db.val('select count(*)::int from contacts'), 0);
+  assert.equal(await db.val('select count(*)::int from messages'), 0);
+  // una reacción tampoco cuenta como respuesta ni abre la ventana de 24 h
+  await api('POST', '/contacts', { name: 'Ana', phone: '2235550001' });
+  assert.equal((await webhook(batch({ from: '5492235550001', id: 'wamid.R1', type: 'reaction', reaction: { emoji: '👍' } }))).status, 200);
+  assert.equal(await db.val('select last_inbound_at from contacts'), null);
+});
+
+test('número extranjero que escribe: queda con su número real, no como un celular argentino', async () => {
+  await reset();
+  assert.equal((await webhook(batch(msg('59899123456', 'hola', 'wamid.F1')))).status, 200);
+  assert.equal(await db.val('select phone from contacts'), '59899123456');
+});
+
+test('error general de WhatsApp (token vencido): los mensajes esperan, se avisa en el panel y salen cuando se arregla', async () => {
+  await reset();
+  await api('PUT', '/settings', EVENT);
+  const ids = [];
+  for (const [n, p] of [['Caro', '2235550003'], ['Dani', '2235550004']]) ids.push((await api('POST', '/contacts', { name: n, phone: p })).json.id);
+  const bad = { status: 401, json: { error: { code: 190, message: 'Invalid OAuth access token' } } };
+  metaQueue.push(bad, bad);
+  const camp = await api('POST', '/campaigns', { name: 'Aviso', body: 'x', template: { name: 'plantilla_ok', lang: 'es_AR', params: '' }, filter: { ids } });
+  assert.equal(camp.status, 200);
+  const rows = await db.query('select status, attempts, error from outbox order by id');
+  assert.deepEqual(rows.map((r) => r.status), ['pending', 'pending'], 'nada se descarta');
+  assert.deepEqual(rows.map((r) => r.attempts), [0, 0], 'y no se gastan intentos');
+  assert.match(rows[0].error, /token/i);
+  const st = (await api('GET', '/whatsapp/status')).json;
+  assert.equal(st.ready, false);
+  assert.match(st.issues.join(' '), /en pausa/);
+  assert.match((await api('GET', '/stats')).json.send_alert.message, /token/i);
+  assert.equal(await db.val("select count(*)::int from messages where status = 'failed'"), 0);
+
+  await db.query("update outbox set send_at = now() - interval '1 second'"); // se corrigió el token
+  assert.equal((await cronTick()).json.sent, 2);
+  assert.deepEqual((await db.query('select status from outbox order by id')).map((r) => r.status), ['sent', 'sent']);
+  assert.equal((await api('GET', '/whatsapp/status')).json.ready, true, 'el aviso se borra solo');
+  assert.equal((await api('GET', '/stats')).json.send_alert, null);
+});
+
+test('límite de velocidad de Meta (HTTP 400 + código 130429): se reintenta, no es un fallo permanente', async () => {
+  await reset();
+  const c = (await api('POST', '/contacts', { name: 'Eli', phone: '2235550005' })).json;
+  metaQueue.push({ status: 400, json: { error: { code: 130429, message: 'Rate limit hit' } } });
+  await api('POST', '/campaigns', { name: 'Velocidad', body: 'x', template: { name: 'plantilla_ok', lang: 'es_AR', params: '' }, filter: { ids: [c.id] } });
+  const row = await db.one('select * from outbox where contact_id = $1', [c.id]);
+  assert.equal(row.status, 'pending');
+  assert.equal(row.attempts, 1);
+});
+
+test('si Meta dice que la ventana de 24 h ya se cerró, se manda la plantilla en vez de fallar', async () => {
+  await reset();
+  await api('PUT', '/settings', EVENT);
+  const c = (await api('POST', '/contacts', { name: 'Fran', phone: '2235550006' })).json;
+  await db.query('update contacts set last_inbound_at = now() where id = $1', [c.id]); // creemos que la ventana está abierta
+  metaCalls.length = 0;
+  metaQueue.push({ status: 400, json: { error: { code: 131047, message: 'Re-engagement message' } } });
+  await api('POST', '/campaigns', { name: 'Caída', body: 'Hola {{nombre}}', template: { name: 'plantilla_ok', lang: 'es_AR', params: 'nombre' }, filter: { ids: [c.id] } });
+  assert.deepEqual(metaCalls.map((m) => m.body.type), ['text', 'template']);
+  assert.equal((await db.one('select status from outbox where contact_id = $1', [c.id])).status, 'sent');
+});
+
+test('sin fecha/lugar del evento los mensajes no salen con huecos: esperan a que se completen en Ajustes', async () => {
+  await reset(); // sin datos del evento
+  const c = (await api('POST', '/contacts', { name: 'Gabi', phone: '2235550007' })).json;
+  metaCalls.length = 0;
+  await api('POST', '/campaigns', { name: 'Fecha', body: 'x', template: { name: 'plantilla_ok', lang: 'es_AR', params: 'nombre, fecha, lugar' }, filter: { ids: [c.id] } });
+  assert.equal(metaCalls.length, 0);
+  const row = await db.one('select * from outbox where contact_id = $1', [c.id]);
+  assert.equal(row.status, 'pending');
+  assert.match(row.error, /Falta completar en Ajustes/);
+
+  await api('PUT', '/settings', EVENT);
+  await db.query("update outbox set send_at = now() - interval '1 second'");
+  assert.equal((await cronTick()).json.sent, 1);
+  assert.deepEqual(metaCalls[0].body.template.components[0].parameters.map((p) => p.text), ['Gabi', 'domingo 15 de noviembre', 'Plaza Mitre']);
+});
+
+test('cron: deja latido, el panel lo muestra, y el tope por ejecución cuida el tiempo de CPU', async () => {
+  await reset();
+  assert.equal((await api('GET', '/stats')).json.scheduler.last_tick_at, null);
+  assert.equal((await cronTick()).status, 200);
+  assert.match((await api('GET', '/stats')).json.scheduler.last_tick_at, /^\d{4}-\d\d-\d\dT/);
+
+  const ids = [];
+  const rows = Array.from({ length: 200 }, (_, i) => `Fam ${i},223${5100000 + i}`).join('\n');
+  assert.equal((await api('POST', '/import/commit', { text: 'Nombre,Teléfono\n' + rows, consent: true })).json.created, 200);
+  for (const r of await db.query('select id from contacts')) ids.push(r.id);
+  metaCalls.length = 0;
+  await api('PUT', '/settings', EVENT);
+  const camp = await api('POST', '/campaigns', { name: 'Masiva', body: 'x', template: { name: 'plantilla_ok', lang: 'es_AR', params: '' }, filter: { ids } });
+  assert.equal(camp.json.total, 200);
+  assert.equal(metaCalls.length, 150, 'una ejecución envía como mucho 150 mensajes');
+  assert.equal((await cronTick()).json.sent, 50, 'el resto sale en la siguiente (cada minuto)');
+});
+
+test('contacto: un estado inválido no guarda nada, y editar sin mandar opted_out no reactiva a quien se dio de baja', async () => {
+  await reset();
+  const c = (await api('POST', '/contacts', { name: 'Hugo', phone: '2235550008' })).json;
+  await api('POST', '/contacts/bulk', { ids: [c.id], action: 'optout' });
+  const bad = await api('PUT', `/contacts/${c.id}`, { name: 'Hugo Nuevo', status: 'zzz' });
+  assert.equal(bad.status, 400);
+  assert.equal((await api('GET', `/contacts/${c.id}`)).json.name, 'Hugo', 'no quedó guardado a medias');
+  const ok = await api('PUT', `/contacts/${c.id}`, { notes: 'alérgico al maní' });
+  assert.equal(ok.json.opted_out, true);
+  assert.equal(ok.json.notes, 'alérgico al maní');
+});
+
+test('exportación: no se corta en 5000 contactos', async () => {
+  await reset();
+  const values = Array.from({ length: 5300 }, (_, i) => `('C${i}', '549223${String(6000000 + i)}', '223${String(6000000 + i)}')`).join(',');
+  await db.query(`insert into contacts (name, phone, phone_key) values ${values}`);
+  const csv = await api('GET', '/contacts/export.csv');
+  assert.equal(csv.text.trim().split('\n').length, 5301);
+});
+
+test('prueba de WhatsApp: no se envía a un número que pidió la baja', async () => {
+  await reset();
+  await api('PUT', '/settings', EVENT);
+  await db.query("insert into suppressions (phone_key) values ('2235550009')");
+  metaCalls.length = 0;
+  assert.equal((await api('POST', '/whatsapp/test', { phone: '2235550009' })).status, 409);
+  assert.equal(metaCalls.length, 0);
+});
+
+test('ajustes: fechas imposibles se rechazan, y un recordatorio «0 minutos antes» no se puede crear', async () => {
+  for (const bad of ['2026-02-31T10:00', '2026-11-15T25:61', '2026-11-15 16:00', 'mañana']) {
+    assert.equal((await api('PUT', '/settings', { event_at_local: bad })).status, 400, bad);
+  }
+  assert.equal((await api('PUT', '/settings', { event_at_local: '2099-11-15T16:00' })).status, 200);
+  assert.equal((await api('POST', '/automations', { name: 'Ya', trigger: 'before_event', config: { offset_minutes: 0 }, body: 'x' })).status, 400);
+  assert.equal((await api('POST', '/automations', { name: 'Ya', trigger: 'before_event', config: { offset_minutes: 5 }, body: 'x' })).status, 200);
 });

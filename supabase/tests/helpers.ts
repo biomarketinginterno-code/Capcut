@@ -38,9 +38,9 @@ export const teardown = () => globalThis.__closeTestDb?.();
 
 /** Vacía los datos de prueba entre tests y apaga las automatizaciones que no son de respuesta. */
 export async function reset() {
-  await db.query('truncate outbox, messages, automation_runs, campaigns, contacts restart identity cascade');
+  await db.query('truncate outbox, messages, automation_runs, campaigns, contacts, suppressions, login_attempts restart identity cascade');
   await db.query("update automations set active = false where trigger <> 'keyword'");
-  await db.query("delete from settings where key in ('event_at_local','event_place','event_address','event_name')");
+  await db.query("delete from settings where key in ('event_at_local','event_place','event_address','event_name','wa_alert','cron_last_tick')");
 }
 
 export const sent = (contactId) => db.query("select * from messages where contact_id = $1 and direction = 'out' order by id", [contactId]);

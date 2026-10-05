@@ -11,13 +11,27 @@ const FRIENDLY = {
   132001: 'La plantilla no existe o no está aprobada en ese idioma.',
   190: 'El token de WhatsApp venció o es inválido. Generá uno nuevo (token permanente) y cargalo en Ajustes.',
   100: 'Meta rechazó el pedido (parámetro inválido). Revisá el número y la plantilla.',
+  130429: 'Se superó el límite de mensajes por segundo de WhatsApp. Se reintenta más tarde.',
+  131048: 'WhatsApp frenó el envío por reportes de spam. Se reintenta más tarde.',
+  131031: 'La cuenta de WhatsApp Business está bloqueada o restringida. Revisala en el administrador de Meta.',
+  131042: 'Hay un problema con el medio de pago de tu cuenta de WhatsApp Business. Revisalo en Meta.',
+  131005: 'El token no tiene permiso para enviar mensajes con este número. Revisá los permisos en Meta.',
+  368: 'WhatsApp bloqueó temporalmente el envío por incumplir sus políticas.',
 };
 
+// Límites de velocidad de Meta: se reintentan más tarde (llegan con HTTP 400, no solo 429).
+const RETRY_CODES = new Set([4, 17, 32, 613, 80007, 130429, 131048, 131056, 133016]);
+// Problemas de la cuenta, no del mensaje: todos los envíos van a fallar igual hasta que alguien lo arregle.
+// Los mensajes quedan en espera (no se descartan) y se avisa en Ajustes.
+const SYSTEMIC_CODES = new Set([10, 102, 190, 368, 131005, 131031, 131042]);
+const isSystemic = (code) => SYSTEMIC_CODES.has(Number(code)) || (Number(code) >= 200 && Number(code) <= 299);
+
 export class SendError extends Error {
-  constructor(message, { retryable = false, code } = {}) {
+  constructor(message, { retryable = false, code, systemic = false } = {}) {
     super(message);
     this.retryable = retryable;
     this.code = code;
+    this.systemic = systemic;
   }
 }
 
@@ -106,7 +120,9 @@ const cloud = {
       const err = data.error || {};
       const detail = err.error_data?.details || err.message || `HTTP ${res.status}`;
       const msg = FRIENDLY[err.code] ? `${FRIENDLY[err.code]} (${detail})` : detail;
-      throw new SendError(msg, { retryable: res.status === 429 || res.status >= 500, code: err.code });
+      const systemic = isSystemic(err.code) || res.status === 401;
+      const retryable = !systemic && (res.status === 429 || res.status >= 500 || RETRY_CODES.has(Number(err.code)) || err.is_transient === true);
+      throw new SendError(msg, { retryable, systemic, code: err.code });
     }
     const waId = data.messages?.[0]?.id;
     if (!waId) throw new SendError('WhatsApp no devolvió el id del mensaje', { retryable: true });
@@ -120,6 +136,11 @@ export async function getProvider() {
   return { mode: p.mode, send: (to, payload) => p.send(cfg, to, payload) };
 }
 
+/** Aviso guardado por la cola cuando WhatsApp rechaza TODO (token vencido, cuenta bloqueada…): se borra solo al volver a enviar. */
+export async function sendAlert() {
+  try { return JSON.parse((await getRaw('wa_alert')) || 'null'); } catch { return null; }
+}
+
 export async function status() {
   const cfg = await waConfig();
   if (!isCloud(cfg)) {
@@ -129,6 +150,8 @@ export async function status() {
     };
   }
   const issues = [];
+  const alert = await sendAlert();
+  if (alert) issues.push(`Los envíos están en pausa: ${alert.message}`);
   if (!cfg.verifyToken) issues.push('Falta el token de verificación del webhook.');
   if (!cfg.appSecret) issues.push('Falta la clave secreta de la app de Meta (App Secret): sin ella no se aceptan respuestas entrantes.');
   return {

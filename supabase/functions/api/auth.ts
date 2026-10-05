@@ -34,30 +34,42 @@ async function passwordOk(password) {
   return Boolean(row?.ok);
 }
 
+/**
+ * Cuenta el intento ANTES de mirar la contraseña, en una sola sentencia atómica: con peticiones simultáneas cada una
+ * recibe un número distinto y solo las primeras MAX_ATTEMPTS llegan a probar la contraseña. La ventana es fija
+ * (no se extiende mientras está bloqueado) y se vacía al entrar bien.
+ */
+async function countAttempt(bucket) {
+  return db.val(
+    `insert into login_attempts (ip, n, until_at) values ($1, 1, now() + ($2::int * interval '1 second'))
+     on conflict (ip) do update set
+       n = case when login_attempts.until_at <= now() then 1 else login_attempts.n + 1 end,
+       until_at = case when login_attempts.until_at <= now() then excluded.until_at else login_attempts.until_at end
+     returning n`,
+    [bucket, LOCK_MS / 1000],
+  );
+}
+
+const tooMany = () => new HttpError(429, 'Demasiados intentos. Probá de nuevo en unos minutos.');
+
 export async function login(password, ip) {
   if (!(await getRaw('admin_hash'))) throw new HttpError(503, 'El CRM todavía no tiene contraseña configurada.');
-  const a = await db.one('select n, until_at from login_attempts where ip = $1', [ip]);
-  const locked = a && Date.parse(a.until_at) > Date.now() && a.n >= MAX_ATTEMPTS;
-  if (locked) throw new HttpError(429, 'Demasiados intentos. Probá de nuevo en unos minutos.');
-  if (!(await passwordOk(password))) {
-    const n = (a && Date.parse(a.until_at) > Date.now() ? a.n : 0) + 1;
-    await db.query(
-      `insert into login_attempts (ip, n, until_at) values ($1, $2, $3::timestamptz)
-       on conflict (ip) do update set n = excluded.n, until_at = excluded.until_at`,
-      [ip, n, new Date(Date.now() + LOCK_MS).toISOString()],
-    );
-    throw new HttpError(401, 'Contraseña incorrecta');
-  }
+  if ((await countAttempt(ip)) > MAX_ATTEMPTS) throw tooMany();
+  if (!(await passwordOk(String(password ?? '').slice(0, 200)))) throw new HttpError(401, 'Contraseña incorrecta');
   await db.query('delete from login_attempts where ip = $1', [ip]);
   return makeToken();
 }
 
-export async function changePassword(current, next) {
-  if (!(await passwordOk(current))) throw new HttpError(401, 'La contraseña actual no es correcta');
-  if (String(next || '').length < 8) throw new HttpError(400, 'La contraseña nueva tiene que tener al menos 8 caracteres');
-  await setRaw('admin_hash', await db.val("select extensions.crypt($1, extensions.gen_salt('bf', 10))", [String(next)]));
+export async function changePassword(current, next, ip = 'unknown') {
+  if ((await countAttempt(`pw:${ip}`)) > MAX_ATTEMPTS) throw tooMany();
+  if (!(await passwordOk(String(current ?? '').slice(0, 200)))) throw new HttpError(401, 'La contraseña actual no es correcta');
+  const pass = String(next ?? '');
+  if (pass.trim().length < 8) throw new HttpError(400, 'La contraseña nueva tiene que tener al menos 8 caracteres (sin contar espacios de los costados)');
+  if (pass.length > 72) throw new HttpError(400, 'La contraseña nueva puede tener hasta 72 caracteres');
+  await setRaw('admin_hash', await db.val("select extensions.crypt($1, extensions.gen_salt('bf', 10))", [pass]));
   // cambiar la contraseña invalida todas las sesiones abiertas
   await setRaw('session_secret', await db.val("select encode(extensions.gen_random_bytes(32), 'hex')"));
+  await db.query('delete from login_attempts where ip = $1', [`pw:${ip}`]);
 }
 
 export async function setInitialPassword(password) {

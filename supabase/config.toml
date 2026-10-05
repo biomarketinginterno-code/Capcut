@@ -1,0 +1,6 @@
+# Configuración para la CLI de Supabase (supabase functions deploy api).
+# La función se autentica sola (token propio, firma de Meta, llave del cron): no usa el JWT de Supabase.
+project_id = "pyseyxvzaqfjrbugfqry"
+
+[functions.api]
+verify_jwt = false
