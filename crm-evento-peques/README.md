@@ -60,16 +60,32 @@ En simulación **nada sale a WhatsApp**, pero se aplican las mismas reglas (vent
    mensajes entrantes vienen realmente de Meta (firma `X-Hub-Signature-256`). **Sin esto el CRM rechaza las respuestas.**
 5. Inventá un texto cualquiera como `WHATSAPP_VERIFY_TOKEN` (por ejemplo `peques-2026-clave-larga`).
 
-### 2.2 Publicar el CRM con HTTPS
+### 2.2 Publicar el CRM con HTTPS (Render)
 
-Meta solo acepta webhooks a una dirección pública con HTTPS (no sirve `localhost`). Opciones simples: **Render**,
-**Railway** o **Fly.io** (un servicio Node con `npm start`). Puntos clave:
+Meta solo acepta webhooks a una dirección pública con HTTPS (no sirve `localhost`). Hace falta un **servidor que
+esté siempre encendido**, con un disco donde guardar la base de datos. Por eso **no sirve Netlify ni Vercel**: son
+para páginas estáticas y funciones que se apagan después de cada llamada (sin disco ni procesos en segundo plano).
 
-- Agregá un **disco persistente** y apuntá `DATA_DIR` a él (ahí vive la base `crm.sqlite`). Sin disco, cada deploy
-  empieza de cero.
-- Cargá las variables de `.env.example` en el panel del hosting (nunca subas tu `.env` ni los tokens al repositorio).
-- `COOKIE_SECURE=1` y una `ADMIN_PASSWORD` larga.
+El repositorio trae un `render.yaml` en la raíz que deja todo configurado:
+
+1. Creá una cuenta en <https://render.com> y conectá tu GitHub.
+2. **New → Blueprint** → elegí este repositorio y la rama donde está la carpeta `crm-evento-peques`.
+3. Render te pide una sola cosa: `ADMIN_PASSWORD` (la contraseña del equipo; ponela larga). → **Apply**.
+4. Esperá unos minutos. Queda en una dirección tipo `https://crm-peques.onrender.com`, con un disco de 1 GB
+   (`/var/data`) donde vive la base. Entrá con tu contraseña: arranca en **modo simulación**.
+5. Cuando tengas los datos de Meta (sección 2.1): **crm-peques → Environment** y agregá `WHATSAPP_TOKEN`,
+   `WHATSAPP_PHONE_NUMBER_ID` y `WHATSAPP_APP_SECRET`. El `WHATSAPP_VERIFY_TOKEN` ya viene generado: copialo de ahí
+   para pegarlo en Meta (paso 2.3). Al guardar, el servicio se reinicia solo y el panel pasa a «Conectado».
+
+Detalles a tener en cuenta:
+
+- Usa el plan **Starter** (de pago): los discos persistentes no existen en el plan gratuito, y el gratuito además
+  se duerme, lo que frenaría la cola de mensajes y el webhook. Verificá el precio vigente en Render.
+- Cada deploy o reinicio cierra las sesiones (volvés a poner la contraseña) y corta el servicio unos segundos.
 - Usá **una sola instancia** (SQLite no se comparte entre varias).
+- Otros hostings con servidor y volumen persistente (Railway, Fly.io) sirven igual: mismas variables de
+  `.env.example`, `DATA_DIR` apuntando al volumen y `COOKIE_SECURE=1`.
+- Nunca subas tu `.env` ni los tokens al repositorio.
 
 ### 2.3 Registrar el webhook
 

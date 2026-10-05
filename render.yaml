@@ -1,0 +1,30 @@
+# Blueprint de Render para el CRM de los peques.
+# Render > New > Blueprint > conectá este repositorio. Pide solo ADMIN_PASSWORD; el resto ya está resuelto.
+# Los datos de WhatsApp (WHATSAPP_TOKEN, etc.) se agregan después, en Environment, para arrancar primero en
+# modo simulación y comprobar que todo anda. Guía completa: crm-evento-peques/README.md (sección 2).
+services:
+  - type: web
+    name: crm-peques
+    runtime: node
+    rootDir: crm-evento-peques
+    # Los discos persistentes no existen en el plan gratuito. "starter" también evita que el servicio se
+    # duerma: lo necesita la cola de mensajes y el webhook de WhatsApp.
+    plan: starter
+    buildCommand: node --version        # sin dependencias que instalar
+    startCommand: npm start
+    healthCheckPath: /api/session       # pública, no pide sesión
+    disk:
+      name: crm-data
+      mountPath: /var/data              # acá vive crm.sqlite
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION               # node:sqlite viene incluido desde Node 22.13
+        value: "22"
+      - key: DATA_DIR
+        value: /var/data
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: ADMIN_PASSWORD             # Render te la pide al crear el Blueprint
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN      # lo generamos; copialo desde Environment para pegarlo en Meta
+        generateValue: true

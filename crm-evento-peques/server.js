@@ -69,6 +69,8 @@ const SECURITY_HEADERS = {
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
   'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'",
+  // detrás de HTTPS (COOKIE_SECURE=1) el navegador no vuelve a entrar por HTTP
+  ...(config.cookieSecure ? { 'Strict-Transport-Security': 'max-age=31536000' } : {}),
 };
 
 function send(res, status, headers, body) {
