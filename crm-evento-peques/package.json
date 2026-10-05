@@ -1,0 +1,13 @@
+{
+  "name": "crm-evento-peques",
+  "version": "1.0.0",
+  "description": "CRM con WhatsApp para el evento de los peques: contactos, campañas, automatizaciones y bandeja de conversaciones.",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}
