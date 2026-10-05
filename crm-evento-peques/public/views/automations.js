@@ -113,12 +113,14 @@ export async function render(view) {
           config.after_event = config.before_event;
           const payload = { name: fd.name.value, trigger, config: config[trigger](), body: fd.body.value, template: readTemplate(form) || null };
           if (isNew) payload.active = fd.active.checked;
+          const btn = el.querySelector('button[type=submit]');
+          btn.disabled = true;
           try {
             if (isNew) await post('/api/automations', payload); else await put(`/api/automations/${a.id}`, payload);
             toast('Guardado', 'good');
             m.close();
             load();
-          } catch (err) { fail(err); }
+          } catch (err) { fail(err); btn.disabled = false; }
         };
       },
     });

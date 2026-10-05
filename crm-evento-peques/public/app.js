@@ -1,4 +1,4 @@
-import { state, html, mount, get, post, icon, fail, toast, setToken } from './lib.js';
+import { state, html, mount, get, post, icon, fail, toast, setToken, poll } from './lib.js';
 
 const ROUTES = [
   { id: 'panel', label: 'Panel', icon: 'home', load: () => import('./views/dashboard.js') },
@@ -11,10 +11,11 @@ const ROUTES = [
 
 const app = document.getElementById('app');
 let cleanup = null;
-let unreadTimer = null;
+let stopUnread = null;
 
 function showLogin(message = '') {
-  clearInterval(unreadTimer);
+  stopUnread?.();
+  document.querySelectorAll('dialog[open]').forEach((d) => d.close()); // un modal abierto taparía el login
   cleanup?.();
   cleanup = null;
   mount(app, html`<div class="login"><form class="card" id="login">
@@ -60,8 +61,8 @@ async function boot() {
     <main id="view" tabindex="-1"></main></div>`);
   app.querySelector('#logout').onclick = async () => { await post('/api/logout').catch(() => {}); setToken(''); showLogin(); };
   pollUnread();
-  clearInterval(unreadTimer);
-  unreadTimer = setInterval(pollUnread, 8000);
+  stopUnread?.();
+  stopUnread = poll(pollUnread, 45000);
   route();
 }
 
@@ -101,5 +102,5 @@ async function route() {
 
 window.addEventListener('hashchange', route);
 window.addEventListener('crm:unauthorized', () => showLogin('Tu sesión venció. Volvé a entrar.'));
-window.addEventListener('unhandledrejection', (e) => { if (e.reason?.message) toast(e.reason.message, 'bad'); });
+window.addEventListener('unhandledrejection', (e) => { toast(e.reason?.friendly ? e.reason.message : 'Algo salió mal. Probá de nuevo.', 'bad'); });
 boot();

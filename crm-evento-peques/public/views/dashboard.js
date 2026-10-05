@@ -1,4 +1,4 @@
-import { state, html, mount, get, icon, statusInfo } from '../lib.js';
+import { state, html, mount, get, icon, statusInfo, fmtDateTime } from '../lib.js';
 
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
@@ -20,6 +20,8 @@ export async function render(view) {
   const max = Math.max(1, ...Object.values(s.by_status));
   const m = s.messages_7d;
   const hasAuto = autos.some((a) => a.active && a.trigger !== 'keyword');
+  const tick = s.scheduler?.last_tick_at; // solo lo informa la versión en la nube
+  const stalled = s.scheduler && (!tick || Date.now() - Date.parse(tick) > 5 * 60000);
 
   const steps = [
     { done: Boolean(ev.at), t: 'Cargá la fecha y el lugar del evento', href: '#/ajustes' },
@@ -38,6 +40,8 @@ export async function render(view) {
         ${cd && html`<div class="count">${cd.n}<small>${cd.l}</small></div>`}</div>
 
       ${wa.mode !== 'cloud' && html`<div class="banner warn"><div><b>WhatsApp en modo simulación</b>Todo funciona, pero los mensajes no salen de verdad. ${state.meta.credentials_editable ? html`Para conectar tu número cargá tus datos de WhatsApp en <a href="#/ajustes">Ajustes</a>.` : 'Para conectar tu número seguí la guía del README y cargá las variables WHATSAPP_*.'}</div></div>`}
+      ${s.send_alert && html`<div class="banner bad"><div><b>Hubo un problema con los envíos</b>${s.send_alert.message} (${fmtDateTime(s.send_alert.at)})</div></div>`}
+      ${stalled && html`<div class="banner warn"><div><b>Los envíos programados no están corriendo</b>${tick ? `El último ciclo fue el ${fmtDateTime(tick)}.` : 'Todavía no se registró ningún ciclo.'} Los mensajes en cola no van a salir hasta que se reactive el cron (mirá el README).</div></div>`}
       ${wa.mode === 'cloud' && wa.issues?.length ? html`<div class="banner bad"><div><b>WhatsApp conectado, pero incompleto</b>${wa.issues.join(' ')}</div></div>` : ''}
 
       <div class="grid kpis">

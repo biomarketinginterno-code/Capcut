@@ -1,6 +1,6 @@
 import {
   state, html, raw, mount, get, post, icon, toast, fail, modal, confirmBox, statusInfo, fmtDateTime,
-  variableChips, wireVariableChips, templateFields, readTemplate, sampleVars, renderText, debounce,
+  variableChips, wireVariableChips, templateFields, readTemplate, sampleVars, renderText, debounce, poll,
 } from '../lib.js';
 
 const DEFAULT_BODY = '¡Hola {{nombre}}! 🎈 Te contamos novedades de *{{evento}}*: será el {{fecha}} a las {{hora}} en {{lugar}}. ¡Los esperamos! Si no querés recibir más mensajes, respondé BAJA.';
@@ -70,18 +70,38 @@ export async function render(view) {
           tags: form.elements.tags.value.split(/[,;]/).map((t) => t.trim()).filter(Boolean),
         });
         const updatePreview = () => { el.querySelector('#prev').textContent = renderText(form.elements.body.value, sampleVars()) || '…'; };
-        let eligible = 0;
+        const go = el.querySelector('#go');
+        let last = null;  // última vista previa del servidor (outside_window solo lo informa la versión en la nube)
+        let counted = ''; // filtro al que corresponde `last`
+        let asked = '';   // filtro del último pedido
+        let seq = 0;      // número del último pedido: una respuesta vieja no pisa a la actual
+        const late = () => last && last.outside_window > 0 && !form.elements.tpl_name.value.trim(); // texto libre a quien no escribió en 24 h
+        const drawCount = () => {
+          if (!last) return;
+          const n = last.eligible;
+          const warn = late();
+          const notes = [warn && `${last.outside_window} no te escribieron en las últimas 24 h: sin plantilla el texto libre no les llega. Completá la plantilla.`,
+            last.excluded_optout ? `${last.excluded_optout} más se excluyen porque pidieron la baja.` : 'Se excluyen automáticamente quienes pidieron la baja.'].filter(Boolean).join(' ');
+          mount(el.querySelector('#count'), html`<div><b>${warn ? `Solo ${n - last.outside_window} de ${n} contactos recibirán este mensaje` : `${n} contacto${n === 1 ? '' : 's'} recibirá${n === 1 ? '' : 'n'} este mensaje`}</b>${notes}</div>`);
+          el.querySelector('#count').className = `banner ${n === 0 ? 'bad' : warn ? 'warn' : 'info'}`;
+        };
         const updateCount = debounce(async () => {
+          const f = filter();
+          const key = JSON.stringify(f);
+          if (key === asked) return; // el filtro no cambió (se escribió en otro campo): no hace falta volver a pedir
+          asked = key;
+          const my = ++seq;
+          go.disabled = true; // hasta que llegue el conteo no se puede enviar
           try {
-            const r = await post('/api/campaigns/preview', { filter: filter() });
-            eligible = r.eligible;
-            const bad = r.eligible === 0;
-            mount(el.querySelector('#count'), html`<div><b>${r.eligible} contacto${r.eligible === 1 ? '' : 's'} recibirá${r.eligible === 1 ? '' : 'n'} este mensaje</b>${r.excluded_optout ? `${r.excluded_optout} más se excluyen porque pidieron la baja.` : 'Se excluyen automáticamente quienes pidieron la baja.'}</div>`);
-            el.querySelector('#count').className = `banner ${bad ? 'bad' : 'info'}`;
-            el.querySelector('#go').disabled = bad;
-          } catch (err) { fail(err); }
+            const r = await post('/api/campaigns/preview', { filter: f });
+            if (my !== seq) return;
+            last = r;
+            counted = key;
+            drawCount();
+            go.disabled = r.eligible === 0;
+          } catch (err) { if (my === seq) { asked = ''; fail(err); } }
         }, 250);
-        form.addEventListener('input', () => { updatePreview(); updateCount(); });
+        form.addEventListener('input', () => { updatePreview(); drawCount(); updateCount(); });
         updatePreview();
         updateCount();
         form.onsubmit = async (e) => {
@@ -89,8 +109,11 @@ export async function render(view) {
           const fd = form.elements;
           const later = form.querySelector('[name=when]:checked').value === 'later';
           if (later && !fd.at.value) return toast('Elegí cuándo se envía', 'bad');
-          if (!(await confirmBox(`Vas a enviar «${fd.name.value}» a ${eligible} contacto${eligible === 1 ? '' : 's'}${later ? ` el ${new Date(fd.at.value).toLocaleString('es-AR')}` : ' ahora mismo'}. ¿Seguimos?`, 'Sí, enviar'))) return;
-          el.querySelector('#go').disabled = true;
+          if (later && new Date(fd.at.value) <= Date.now() + 60000) return toast('Elegí una fecha y hora futura', 'bad');
+          if (counted !== JSON.stringify(filter())) return toast('Esperá un momento: todavía se está calculando a quiénes les llega', 'bad');
+          const n = last.eligible;
+          if (!(await confirmBox(`Vas a enviar «${fd.name.value}» a ${n} contacto${n === 1 ? '' : 's'}${late() ? ` (a ${last.outside_window} no les llega sin plantilla)` : ''}${later ? ` el ${new Date(fd.at.value).toLocaleString('es-AR')}` : ' ahora mismo'}. ¿Seguimos?`, 'Sí, enviar'))) return;
+          go.disabled = true;
           try {
             await post('/api/campaigns', {
               name: fd.name.value, body: fd.body.value, filter: filter(), template: readTemplate(form),
@@ -99,7 +122,7 @@ export async function render(view) {
             toast(later ? 'Campaña programada' : 'Campaña en marcha', 'good');
             m.close();
             load();
-          } catch (err) { fail(err); el.querySelector('#go').disabled = false; }
+          } catch (err) { fail(err); go.disabled = false; }
         };
       },
     });
@@ -119,6 +142,5 @@ export async function render(view) {
   sessionStorage.removeItem('crm:campaign_ids');
   if (ids?.length) newCampaign(ids);
 
-  const timer = setInterval(() => { if (list.some((c) => c.stats.pending > 0)) load().catch(() => {}); }, 5000);
-  return () => clearInterval(timer);
+  return poll(async () => { if (list.some((c) => c.stats.pending > 0)) await load(); }, 15000);
 }

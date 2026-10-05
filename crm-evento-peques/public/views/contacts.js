@@ -28,8 +28,12 @@ export async function render(view) {
 
   const $ = (s) => view.querySelector(s);
 
+  let loadSeq = 0; // cada pedido lleva su número: la respuesta de una búsqueda anterior no pisa a la actual
   async function load() {
-    [contacts, tags] = await Promise.all([get(`/api/contacts?${qs(f)}`), get('/api/tags')]);
+    const my = ++loadSeq;
+    const [list, tagList] = await Promise.all([get(`/api/contacts?${qs(f)}`), get('/api/tags')]);
+    if (my !== loadSeq) return;
+    [contacts, tags] = [list, tagList];
     for (const id of [...selected]) if (!contacts.some((c) => c.id === id)) selected.delete(id);
     $('#ft').innerHTML = html`<option value="">Todas las etiquetas</option>${tags.map((t) => html`<option value="${t.tag}" ${t.tag === f.tag ? raw('selected') : ''}>${t.tag} (${t.count})</option>`)}`.s;
     $('#fs').innerHTML = statusOptions(f.status, 'Todos los estados').s;
@@ -75,6 +79,7 @@ export async function render(view) {
   }
 
   // ---- alta / edición ----
+  const readForm = (fd) => ({ name: fd.name.value, phone: fd.phone.value, email: fd.email.value, child_name: fd.child_name.value, child_age: fd.child_age.value, kids_count: fd.kids_count.value, status: fd.status.value, tags: fd.tags.value, notes: fd.notes.value });
   function contactModal(c = null) {
     const isNew = !c;
     const m = modal({
@@ -94,17 +99,25 @@ export async function render(view) {
       </form>`,
       foot: html`${!isNew && html`<button class="btn danger left" type="button" id="del">${icon('trash')} Eliminar</button>`}<button class="btn" data-close type="button">Cancelar</button><button class="btn primary" type="submit" form="cf">Guardar</button>`,
       onMount: (el) => {
+        const before = readForm(el.querySelector('#cf').elements);
+        const wasOptedOut = el.querySelector('[name=opted_out]')?.checked;
         el.querySelector('#cf').onsubmit = async (e) => {
           e.preventDefault();
           const fd = e.target.elements;
-          const body = { name: fd.name.value, phone: fd.phone.value, email: fd.email.value, child_name: fd.child_name.value, child_age: fd.child_age.value, kids_count: fd.kids_count.value, status: fd.status.value, tags: fd.tags.value, notes: fd.notes.value };
-          if (fd.opted_out) body.opted_out = fd.opted_out.checked;
+          const body = readForm(fd);
+          if (!isNew) { // solo lo que cambió: la baja, el estado o las etiquetas pudieron cambiar en el servidor mientras tanto
+            for (const k of Object.keys(body)) if (body[k] === before[k]) delete body[k];
+            if (fd.opted_out.checked !== wasOptedOut) body.opted_out = fd.opted_out.checked;
+            if (!Object.keys(body).length) return m.close();
+          }
+          const btn = el.querySelector('button[type=submit]');
+          btn.disabled = true;
           try {
             if (isNew) await post('/api/contacts', body); else await put(`/api/contacts/${c.id}`, body);
             toast(isNew ? 'Contacto agregado' : 'Cambios guardados', 'good');
             m.close();
             load();
-          } catch (err) { fail(err); }
+          } catch (err) { fail(err); btn.disabled = false; }
         };
         el.querySelector('#del')?.addEventListener('click', async () => {
           if (!(await confirmBox(`¿Eliminar a ${c.name} y toda su conversación? No se puede deshacer.`, 'Eliminar', true))) return;
@@ -137,13 +150,17 @@ export async function render(view) {
           $m('#go').disabled = !ok;
           $m('#go').textContent = pv?.ok ? `Importar ${pv.ok} contacto${pv.ok === 1 ? '' : 's'}` : 'Importar';
         };
+        let seq = 0;
         async function review() {
+          const my = ++seq;
           if (!text.trim()) { pv = null; mount($m('#pv'), ''); return ready(); }
           try {
-            pv = await post('/api/import/preview', { text, mapping, has_header: hasHeader });
+            const r = await post('/api/import/preview', { text, mapping, has_header: hasHeader });
+            if (my !== seq) return;
+            pv = r;
             mapping = pv.mapping;
             hasHeader = pv.has_header;
-          } catch (err) { pv = null; mount($m('#pv'), html`<div class="banner bad">${err.message}</div>`); return ready(); }
+          } catch (err) { if (my !== seq) return; pv = null; mount($m('#pv'), html`<div class="banner bad">${err.message}</div>`); return ready(); }
           drawPreview();
           ready();
         }
@@ -203,7 +220,9 @@ export async function render(view) {
       onMount: (el) => {
         el.querySelector('#tf').onsubmit = async (e) => {
           e.preventDefault();
-          try { await post('/api/contacts/bulk', { ids, action: 'add_tag', value: e.target.tag.value }); toast('Etiqueta agregada', 'good'); m.close(); load(); } catch (err) { fail(err); }
+          const btn = el.querySelector('button[type=submit]');
+          btn.disabled = true;
+          try { await post('/api/contacts/bulk', { ids, action: 'add_tag', value: e.target.tag.value }); toast('Etiqueta agregada', 'good'); m.close(); load(); } catch (err) { fail(err); btn.disabled = false; }
         };
       },
     });
@@ -236,7 +255,10 @@ export async function render(view) {
   view.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act],[data-edit],[data-chat]');
     if (!b) return;
-    if (b.dataset.edit) return contactModal(contacts.find((c) => c.id === Number(b.dataset.edit)));
+    if (b.dataset.edit) { // se pide el contacto de nuevo: la lista puede estar vieja (una baja o un cambio de estado llegan por WhatsApp)
+      try { contactModal(await get(`/api/contacts/${b.dataset.edit}`)); } catch (err) { fail(err); }
+      return;
+    }
     if (b.dataset.chat) { sessionStorage.setItem('crm:open_chat', b.dataset.chat); location.hash = '#/conversaciones'; return; }
     const ids = [...selected];
     switch (b.dataset.act) {

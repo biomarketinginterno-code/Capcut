@@ -46,21 +46,27 @@ function request(method, path, body) {
   });
 }
 
+const SLOW = 'El servidor tardó demasiado o está sobrecargado. Probá de nuevo en un minuto.';
+const STATUS_TEXT = {
+  401: 'La API rechazó la conexión. Si está en Supabase, publicá la función con --no-verify-jwt.',
+  404: 'No se encontró la API. Revisá la dirección configurada en config.js (CRM_API).',
+  502: SLOW, 503: SLOW, 504: SLOW, 546: SLOW,
+};
+// friendly: mensaje pensado para mostrarse tal cual (el resto de los errores no)
+const apiError = (message, status, data) => Object.assign(new Error(message), { friendly: true, status, data });
+
 export async function api(method, path, body) {
   let res;
-  try { res = await request(method, path, body); } catch { throw new Error('No hay conexión con el servidor. Revisá tu internet y probá de nuevo.'); }
-  if (res.status === 401 && !NOT_SESSION.has(path.split('?')[0])) {
+  try { res = await request(method, path, body); } catch { throw apiError('No hay conexión con el servidor. Revisá tu internet y probá de nuevo.'); }
+  const data = await res.json().catch(() => null);
+  // la API siempre responde {error}: un 401 sin ese campo lo dio el gateway (JWT), no es una sesión vencida
+  if (res.status === 401 && data?.error && !NOT_SESSION.has(path.split('?')[0])) {
     setToken('');
     window.dispatchEvent(new Event('crm:unauthorized'));
-    throw new Error('Tu sesión venció. Volvé a entrar.');
+    throw apiError('Tu sesión venció. Volvé a entrar.', 401);
   }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const e = new Error(data.error || `Error ${res.status}`);
-    e.status = res.status;
-    e.data = data;
-    throw e;
-  }
+  if (!res.ok) throw apiError(data?.error || STATUS_TEXT[res.status] || `Error ${res.status}`, res.status, data || {});
+  if (data === null) throw apiError('La respuesta del servidor no es la esperada. Revisá la dirección de la API.');
   return data;
 }
 
@@ -90,7 +96,14 @@ export function toast(msg, type = '') {
   const el = document.createElement('div');
   el.className = `toast ${type}`;
   el.textContent = msg;
-  document.getElementById('toasts').append(el);
+  const box = document.getElementById('toasts');
+  box.append(el);
+  // #toasts es un popover: vive en la capa superior del navegador, igual que los <dialog> modales; hay que volver a
+  // mostrarlo para que quede por encima de un modal abierto después
+  if (box.showPopover) {
+    if (box.matches(':popover-open') && document.querySelector('dialog[open]')) box.hidePopover();
+    box.showPopover();
+  }
   setTimeout(() => el.remove(), type === 'bad' ? 6000 : 3200);
 }
 export const fail = (e) => toast(e.message || 'Algo salió mal', 'bad');
@@ -159,6 +172,24 @@ export const statusOptions = (selected, withAll = '') => html`${withAll ? html`<
 export const waLink = (phone, text = '') => `https://wa.me/${phone}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
 export const debounce = (fn, ms = 250) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
+/** Sondeo: un pedido a la vez y en pausa mientras la pestaña está oculta (cada pedido cuenta en la cuota de la nube). Devuelve cómo frenarlo. */
+export function poll(fn, ms) {
+  let timer;
+  let busy = false;
+  let stopped = false;
+  const run = async () => {
+    clearTimeout(timer);
+    if (busy || stopped || document.hidden) return;
+    busy = true;
+    try { await fn(); } catch { /* se reintenta en el próximo turno */ }
+    busy = false;
+    if (!stopped && !document.hidden) timer = setTimeout(run, ms);
+  };
+  document.addEventListener('visibilitychange', run); // al volver a la pestaña actualiza enseguida
+  timer = setTimeout(run, ms);
+  return () => { stopped = true; clearTimeout(timer); document.removeEventListener('visibilitychange', run); };
+}
+
 // Vista previa de mensajes con datos de ejemplo + los del evento (mismo formato que el servidor)
 export function sampleVars(contact = {}) {
   const s = state.meta.settings;
@@ -191,8 +222,8 @@ export function wireVariableChips(root) {
 }
 
 /** Campos de plantilla de WhatsApp (se reutiliza en campañas, automatizaciones y bandeja). */
-export const templateFields = (t = {}) => html`
-  <details ${t && t.name ? raw('open') : ''}>
+export const templateFields = (t = {}, open = false) => html`
+  <details ${open || (t && t.name) ? raw('open') : ''}>
     <summary class="small" style="cursor:pointer;font-weight:650">Plantilla de WhatsApp (para contactos que no te escribieron en las últimas 24 h)</summary>
     <div class="stack-sm" style="margin-top:.6rem">
       <div class="cols3">
