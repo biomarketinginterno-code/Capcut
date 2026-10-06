@@ -21,9 +21,12 @@ export async function render(view, { pollUnread }) {
   let openSeq = 0;       // cada pedido lleva su número: una respuesta vieja (de otro chat o de un sondeo anterior) se descarta
   let refreshSeq = 0;
   let sending = false;
+  let gone = false;      // se salió de la pantalla: lo que quede en vuelo (pedidos, temporizadores) no hace nada
+  let fails = 0;
 
   mount(view, html`
     <div class="page-head"><div><h1>Conversaciones</h1><p>Las respuestas de las familias llegan acá. ${simulated ? 'Estás en modo simulación: podés probar respuestas desde cada chat.' : ''}</p></div></div>
+    <div class="banner warn hidden" id="conn" role="status" style="margin-bottom:.8rem"><div><b>Sin conexión con el servidor</b>Esta pantalla no se está actualizando. Seguimos reintentando.</div></div>
     <div class="card flush"><div class="inbox" id="inbox"><div class="list" id="clist"></div><div class="thread" id="thread"></div></div></div>`);
   const $ = (s) => view.querySelector(s);
 
@@ -53,10 +56,28 @@ export async function render(view, { pollUnread }) {
     }
     mount(box, html`<form id="send" class="stack-sm">
       ${!thread.window_open && html`<div class="banner warn"><div><b>Pasaron más de 24 h desde su última respuesta</b>WhatsApp solo permite escribirle con una <b>plantilla aprobada</b> (el texto libre no se envía). Completá la plantilla o esperá a que responda.</div></div>${templateFields(null, true)}`}
-      <div class="line">${thread.window_open && html`<textarea name="text" rows="1" placeholder="Escribí un mensaje…" aria-label="Mensaje"></textarea>`}
-        <button class="btn primary" type="submit">${icon('send')} Enviar</button></div>
+      <div class="line">${thread.window_open && html`<textarea name="text" rows="1" placeholder="Escribí un mensaje…" aria-label="Mensaje para ${c.name}"></textarea>`}
+        <button class="btn primary" type="submit" ${sending ? raw('disabled') : ''}>${icon('send')} Enviar</button></div>
       ${simulated && html`<div class="row small muted"><span>🧪 Simular respuesta de ${c.name}:</span><input type="text" id="sim" style="max-width:220px" placeholder='ej: SI'><button class="btn sm" type="button" id="simgo">Simular</button></div>`}
     </form>`);
+  }
+
+  // Vuelve a dibujar el compositor sin perder lo tipeado (texto, plantilla, simulador) ni el foco
+  function redrawComposer() {
+    const kept = new Map();
+    let focus = null;
+    for (const el of $('#send')?.querySelectorAll('input, textarea') || []) {
+      const key = el.name || el.id;
+      if (!key) continue;
+      kept.set(key, el.value);
+      if (el === document.activeElement) focus = { key, from: el.selectionStart, to: el.selectionEnd };
+    }
+    drawComposer();
+    for (const el of $('#send')?.querySelectorAll('input, textarea') || []) {
+      const key = el.name || el.id;
+      if (kept.has(key)) el.value = kept.get(key);
+      if (focus && focus.key === key) { el.focus(); try { el.setSelectionRange(focus.from, focus.to); } catch { /* no todos los inputs lo permiten */ } }
+    }
   }
 
   function drawThread(scroll = true) {
@@ -73,18 +94,24 @@ export async function render(view, { pollUnread }) {
     $('#inbox').classList.add('open');
   }
 
+  const unreadTotal = () => convs.reduce((n, c) => n + c.unread, 0);
+
   async function loadConvs() {
     convs = await get('/api/conversations');
+    lastUnread = unreadTotal();
     drawList();
   }
 
   async function open(id) {
     const my = ++openSeq;
     const t = await get(`/api/contacts/${id}/messages`);
-    if (my !== openSeq) return; // mientras tanto abrió otro chat (o volvió a la lista)
+    if (my !== openSeq || gone) return; // mientras tanto abrió otro chat (o volvió a la lista)
+    refreshSeq++; // un sondeo que venía de camino quedó viejo
     active = id;
     thread = t;
     lastSig = sig();
+    const c = convs.find((x) => x.id === id);
+    if (c) { c.unread = 0; lastUnread = unreadTotal(); } // pedir los mensajes ya los marcó como leídos en el servidor
     drawThread();
     drawList();
     pollUnread();
@@ -93,15 +120,22 @@ export async function render(view, { pollUnread }) {
   const composerSig = () => `${thread.window_open}${thread.contact.opted_out}`;
 
   async function refresh() {
-    if (document.hidden) return; // pedir los mensajes los marca como leídos: no hacerlo si nadie está mirando
+    if (gone || document.hidden) return; // pedir los mensajes los marca como leídos: no hacerlo si nadie está mirando
+    try { await sync(); fails = 0; $('#conn').classList.add('hidden'); } catch (err) {
+      if (++fails >= 2) $('#conn').classList.remove('hidden'); // la API no responde: que se note en vez de parecer que no hay novedades
+      throw err;
+    }
+  }
+
+  async function sync() {
     const id = active;
     const my = ++refreshSeq;
     const fresh = id ? await get(`/api/contacts/${id}/messages`) : null; // primero los mensajes, así la lista ya trae el chat abierto como leído
     const list = await get('/api/conversations');
-    if (my !== refreshSeq || id !== active) return;
+    if (gone || my !== refreshSeq || id !== active) return;
     convs = list;
     drawList();
-    const unread = convs.reduce((n, c) => n + c.unread, 0);
+    const unread = unreadTotal();
     if (unread !== lastUnread) { lastUnread = unread; pollUnread(); }
     if (!fresh) return;
     const before = sig();
@@ -110,11 +144,7 @@ export async function render(view, { pollUnread }) {
     const sel = $('#tstatus'); // una automatización pudo cambiar el estado (ej: respondió «SI»)
     if (sel && sel.value !== thread.contact.status) { sel.value = thread.contact.status; sel.style.setProperty('--c', statusInfo(thread.contact.status).color); }
     if (sig() !== before) drawMessages(false);
-    if (composerSig() !== beforeComposer) { // el compositor solo se redibuja si cambió algo que lo afecta, y sin perder lo escrito
-      const text = $('#send textarea')?.value;
-      drawComposer();
-      if (text && $('#send textarea')) $('#send textarea').value = text;
-    }
+    if (composerSig() !== beforeComposer) redrawComposer(); // solo si cambió algo que lo afecta (ventana de 24 h, baja)
   }
 
   $('#clist').addEventListener('click', (e) => { const r = e.target.closest('[data-open]'); if (r) open(Number(r.dataset.open)).catch(fail); });
@@ -124,12 +154,12 @@ export async function render(view, { pollUnread }) {
     if (e.target.closest('#simgo')) {
       const input = $('#sim');
       if (!input.value.trim()) return;
-      try { await post('/api/dev/inbound', { contact_id: active, text: input.value }); input.value = ''; setTimeout(() => refresh().catch(() => {}), 900); } catch (err) { fail(err); }
+      try { await post('/api/dev/inbound', { contact_id: thread.contact.id, text: input.value }); input.value = ''; setTimeout(() => refresh().catch(() => {}), 900); } catch (err) { fail(err); }
     }
   });
   view.addEventListener('change', async (e) => {
     if (e.target.id === 'tstatus') {
-      try { await put(`/api/contacts/${active}`, { status: e.target.value }); e.target.style.setProperty('--c', statusInfo(e.target.value).color); toast('Estado actualizado', 'good'); } catch (err) { fail(err); }
+      try { await put(`/api/contacts/${thread.contact.id}`, { status: e.target.value }); e.target.style.setProperty('--c', statusInfo(e.target.value).color); toast('Estado actualizado', 'good'); } catch (err) { fail(err); }
     }
   });
   view.addEventListener('submit', async (e) => {
@@ -142,23 +172,26 @@ export async function render(view, { pollUnread }) {
     const template = readTemplate(form);
     if (!text && !template) return;
     if (!thread.window_open && !template) return toast('Fuera de las 24 h hace falta una plantilla', 'bad');
-    const btn = form.querySelector('button[type=submit]');
+    const to = thread.contact.id; // el chat que se ve en pantalla
     sending = true;
-    btn.disabled = true;
+    form.querySelector('button[type=submit]').disabled = true;
     if (field) field.value = ''; // se vacía antes de esperar: otro Enter no reenvía lo mismo
     try {
-      await post(`/api/contacts/${thread.contact.id}/messages`, { text, template });
+      await post(`/api/contacts/${to}/messages`, { text, template });
       setTimeout(() => refresh().catch(() => {}), 700);
     } catch (err) {
       fail(err);
-      if (field && !field.value) field.value = text;
+      const box = text && !gone && thread.contact.id === to ? $('#send textarea') : null; // el compositor pudo haberse redibujado
+      if (box) box.value = box.value ? `${text}\n${box.value}` : text;
     }
     sending = false;
-    btn.disabled = false;
+    const btn = $('#send button[type=submit]');
+    if (btn) btn.disabled = false;
   });
   view.addEventListener('keydown', (e) => {
-    // en el celular Enter tiene que poder escribir un salto de línea; y con un teclado predictivo (IME) Enter confirma la palabra
-    if (e.target.name === 'text' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229 && !matchMedia('(pointer: coarse)').matches) { e.preventDefault(); e.target.form.requestSubmit(); }
+    // Enter envía solo con mouse (puntero preciso): en el celular tiene que poder escribir un salto de línea (está el botón Enviar);
+    // y con un teclado predictivo (IME) Enter confirma la palabra
+    if (e.target.name === 'text' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229 && matchMedia('(pointer: fine)').matches) { e.preventDefault(); e.target.form.requestSubmit(); }
   });
 
   await loadConvs();
@@ -168,5 +201,6 @@ export async function render(view, { pollUnread }) {
   else if (convs[0] && !document.hidden && matchMedia('(min-width: 861px)').matches) await open(convs[0].id).catch(fail);
   else mount($('#thread'), html`<div class="empty"><div class="big">🎈</div><p>Elegí una conversación</p></div>`);
 
-  return poll(refresh, 15000);
+  const stop = poll(refresh, 15000);
+  return () => { gone = true; stop(); };
 }

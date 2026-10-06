@@ -13,6 +13,28 @@ function describeFilter(f = {}) {
   return parts.length ? parts.join(' · ') : 'todos los contactos';
 }
 
+const pad = (n) => String(n).padStart(2, '0');
+const localInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; // valor de un datetime-local
+const fmtAt = (d) => d.toLocaleString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZoneName: 'short' });
+const plural = (n) => `${n} contacto${n === 1 ? '' : 's'}`;
+
+// La hora de «Programar» se interpreta en la zona del dispositivo (igual que las fechas que se muestran en toda la app)
+const sameZone = (a, b) => [0, 182].every((d) => { // mismas horas hoy y dentro de seis meses (horario de verano): "America/Buenos_Aires" y "America/Argentina/Buenos_Aires" son la misma
+  const t = new Date(Date.now() + d * 86400000);
+  return t.toLocaleString('en-US', { timeZone: a, hourCycle: 'h23' }) === t.toLocaleString('en-US', { timeZone: b, hourCycle: 'h23' });
+});
+function zoneNote() {
+  let device = '';
+  let other = false;
+  try {
+    const parts = (style) => new Intl.DateTimeFormat('es-AR', { timeZoneName: style }).formatToParts().find((p) => p.type === 'timeZoneName')?.value;
+    device = `${parts('long')} (${parts('short')})`;
+    const event = state.meta.settings?.timezone;
+    other = Boolean(event) && !sameZone(event, Intl.DateTimeFormat().resolvedOptions().timeZone);
+  } catch { /* sin Intl completo: no se rotula la zona */ }
+  return `La hora es la de este dispositivo${device ? `: ${device}` : ''}.${other ? ` Ojo: el evento está configurado en ${state.meta.settings.timezone}, otra zona horaria.` : ''}`;
+}
+
 export async function render(view) {
   let list = [];
   mount(view, html`<div class="page-head"><div><h1>Campañas</h1><p>Mandá un mensaje a un grupo de familias (por estado o etiqueta), ahora o programado.</p></div>
@@ -58,7 +80,8 @@ export async function render(view) {
         ${templateFields(null)}
         <div class="stack-sm"><b class="small">¿Cuándo?</b>
           <label class="check"><input type="radio" name="when" value="now" checked><span>Ahora</span></label>
-          <label class="check"><input type="radio" name="when" value="later"><span>Programar <input type="datetime-local" name="at" style="width:auto;margin-left:.4rem"></span></label></div>
+          <label class="check"><input type="radio" name="when" value="later"><span>Programar <input type="datetime-local" name="at" style="width:auto;margin-left:.4rem"></span></label>
+          <div class="small muted">${zoneNote()}</div></div>
         <div class="banner warn"><div><b>Ojo con las 24 horas</b>WhatsApp solo deja mandar texto libre a quien te escribió en las últimas 24 h. A todos los demás hay que enviarles una <b>plantilla aprobada</b>: completá la sección de plantilla de arriba. Las cuentas nuevas también tienen un tope diario de contactos nuevos.</div></div>
       </form>`,
       foot: html`<button class="btn" data-close type="button">Cancelar</button><button class="btn primary" type="submit" form="cf" id="go">Enviar campaña</button>`,
@@ -71,58 +94,127 @@ export async function render(view) {
         });
         const updatePreview = () => { el.querySelector('#prev').textContent = renderText(form.elements.body.value, sampleVars()) || '…'; };
         const go = el.querySelector('#go');
-        let last = null;  // última vista previa del servidor (outside_window solo lo informa la versión en la nube)
-        let counted = ''; // filtro al que corresponde `last`
-        let asked = '';   // filtro del último pedido
-        let seq = 0;      // número del último pedido: una respuesta vieja no pisa a la actual
-        const late = () => last && last.outside_window > 0 && !form.elements.tpl_name.value.trim(); // texto libre a quien no escribió en 24 h
-        const drawCount = () => {
-          if (!last) return;
+        const at = form.elements.at;
+        const later = form.querySelector('[name=when][value=later]');
+        let last = null;   // última vista previa que devolvió el servidor (outside_window solo lo informa la versión en la nube)
+        let counted = '';  // filtro al que corresponde `last`
+        let asked = '';    // filtro del último pedido
+        let seq = 0;       // número del último pedido: una respuesta vieja no pisa a la actual
+        let problem = '';  // por qué falló el último pedido
+        let busy = false;  // calculando o confirmando el envío
+        const hasTpl = () => Boolean(form.elements.tpl_name.value.trim());
+        const lateOf = (r) => (r && r.outside_window > 0 && !hasTpl() ? r.outside_window : 0); // texto libre a quien no escribió en 24 h
+        const drawCount = (fresh) => {
+          const box = el.querySelector('#count');
+          if (!fresh) {
+            mount(box, problem
+              ? html`<div><b>No se pudo calcular a quiénes les llega</b>${problem} <button type="button" class="btn sm" data-retry>Reintentar</button></div>`
+              : html`<div>Calculando destinatarios…</div>`);
+            box.className = `banner ${problem ? 'bad' : 'info'}`;
+            return;
+          }
           const n = last.eligible;
-          const warn = late();
-          const notes = [warn && `${last.outside_window} no te escribieron en las últimas 24 h: sin plantilla el texto libre no les llega. Completá la plantilla.`,
-            last.excluded_optout ? `${last.excluded_optout} más se excluyen porque pidieron la baja.` : 'Se excluyen automáticamente quienes pidieron la baja.'].filter(Boolean).join(' ');
-          mount(el.querySelector('#count'), html`<div><b>${warn ? `Solo ${n - last.outside_window} de ${n} contactos recibirán este mensaje` : `${n} contacto${n === 1 ? '' : 's'} recibirá${n === 1 ? '' : 'n'} este mensaje`}</b>${notes}</div>`);
-          el.querySelector('#count').className = `banner ${n === 0 ? 'bad' : warn ? 'warn' : 'info'}`;
+          const out = lateOf(last);
+          const soon = form.elements.when.value === 'later' ? ' Es el cálculo de hoy: al momento del envío pueden ser más.' : '';
+          const notes = [
+            out === n && out > 0 ? 'Ninguno te escribió en las últimas 24 h: con texto libre no les llega a ninguno y todos figuran como fallidos. Cargá una plantilla aprobada.' : '',
+            out && out < n ? `${out} no te escribieron en las últimas 24 h: con texto libre a esos no les llega y figuran como fallidos. Cargá una plantilla aprobada para que les llegue a todos.` : '',
+            !out && last.outside_window > 0 ? `${last.outside_window} no te escribieron en las últimas 24 h: a esos les llega la plantilla.` : '',
+            last.excluded_optout ? `${last.excluded_optout} más se excluyen porque pidieron la baja.` : 'Se excluyen automáticamente quienes pidieron la baja.',
+          ].filter(Boolean).join(' ');
+          mount(box, html`<div><b>${out ? (out === n ? `Este mensaje no le llega a ninguno de los ${n} contactos` : `Solo ${n - out} de ${n} contactos recibirán este mensaje`) : `${plural(n)} recibirá${n === 1 ? '' : 'n'} este mensaje`}</b>${notes}${out ? soon : ''}
+            ${out ? html`<div style="margin-top:.4rem"><button type="button" class="btn sm" data-tpl>Cargar plantilla</button></div>` : ''}</div>`);
+          box.className = `banner ${n === 0 ? 'bad' : out ? 'warn' : 'info'}`;
         };
-        const updateCount = debounce(async () => {
+        // un único lugar decide qué se muestra y si se puede enviar: solo con el conteo del filtro que está en pantalla
+        const sync = () => {
+          const fresh = last && counted === JSON.stringify(filter());
+          drawCount(fresh);
+          go.disabled = busy || !fresh || last.eligible === 0;
+        };
+        const ask = async () => {
           const f = filter();
           const key = JSON.stringify(f);
           if (key === asked) return; // el filtro no cambió (se escribió en otro campo): no hace falta volver a pedir
           asked = key;
+          problem = '';
           const my = ++seq;
-          go.disabled = true; // hasta que llegue el conteo no se puede enviar
+          sync();
           try {
             const r = await post('/api/campaigns/preview', { filter: f });
             if (my !== seq) return;
             last = r;
             counted = key;
-            drawCount();
-            go.disabled = r.eligible === 0;
-          } catch (err) { if (my === seq) { asked = ''; fail(err); } }
-        }, 250);
-        form.addEventListener('input', () => { updatePreview(); drawCount(); updateCount(); });
+          } catch (err) {
+            if (my !== seq) return;
+            asked = '';
+            problem = err.message || 'Probá de nuevo.';
+          }
+          sync();
+        };
+        const updateCount = debounce(ask, 250);
+        // el campo de fecha nunca acepta el pasado; con «Ahora» elegido no hay fecha
+        const syncWhen = () => {
+          at.min = localInput(new Date(Date.now() + 120000));
+          at.required = later.checked;
+        };
+        form.addEventListener('input', (e) => {
+          if (e.target === at && at.value) later.checked = true; // si eligió una fecha es porque quiere programar
+          else if (e.target.name === 'when' && !later.checked) at.value = '';
+          if (JSON.stringify(filter()) !== asked) problem = '';
+          updatePreview();
+          syncWhen();
+          sync();
+          updateCount();
+        });
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('[data-retry]')) { asked = ''; ask(); }
+          if (e.target.closest('[data-tpl]')) {
+            form.elements.tpl_name.closest('details').open = true;
+            form.elements.tpl_name.focus();
+          }
+        });
         updatePreview();
-        updateCount();
+        syncWhen();
+        ask();
         form.onsubmit = async (e) => {
           e.preventDefault();
+          if (busy) return;
           const fd = form.elements;
-          const later = form.querySelector('[name=when]:checked').value === 'later';
-          if (later && !fd.at.value) return toast('Elegí cuándo se envía', 'bad');
-          if (later && new Date(fd.at.value) <= Date.now() + 60000) return toast('Elegí una fecha y hora futura', 'bad');
-          if (counted !== JSON.stringify(filter())) return toast('Esperá un momento: todavía se está calculando a quiénes les llega', 'bad');
-          const n = last.eligible;
-          if (!(await confirmBox(`Vas a enviar «${fd.name.value}» a ${n} contacto${n === 1 ? '' : 's'}${late() ? ` (a ${last.outside_window} no les llega sin plantilla)` : ''}${later ? ` el ${new Date(fd.at.value).toLocaleString('es-AR')}` : ' ahora mismo'}. ¿Seguimos?`, 'Sí, enviar'))) return;
-          go.disabled = true;
+          const isLater = later.checked;
+          const when = isLater ? new Date(fd.at.value) : null;
+          if (isLater && !fd.at.value) return toast('Elegí cuándo se envía', 'bad');
+          if (isLater && !(when > Date.now() + 60000)) return toast('Esa fecha y hora ya pasaron: elegí un momento futuro (si la dejás en el pasado, los mensajes salen enseguida)', 'bad');
+          const f = filter();
+          const key = JSON.stringify(f);
+          busy = true;
+          form.inert = true; // mientras se calcula no se puede tocar nada
+          sync();
+          let done = false;
           try {
+            // se vuelve a calcular con el filtro exacto que se va a enviar: la confirmación usa este número, no el de la pantalla
+            const r = await post('/api/campaigns/preview', { filter: f });
+            ++seq; asked = key; last = r; counted = key; // el conteo de pantalla pasa a ser este
+            const n = r.eligible;
+            const out = lateOf(r);
+            if (!n) return toast('Ningún contacto cumple ese filtro (o todos pidieron la baja)', 'bad');
+            const msg = `Vas a enviar «${fd.name.value}» a ${plural(n)}${isLater ? ` el ${fmtAt(when)}` : ' ahora mismo'}.`
+              + (out ? ` ${out === n ? 'Ninguno te escribió' : `${out} de ellos no te escribieron`} en las últimas 24 h y no cargaste plantilla: ${out === n ? 'a nadie le llega, todos los envíos van a figurar como fallidos' : 'a esos no les llega y figuran como fallidos'}${isLater ? ' (según los datos de hoy)' : ''}.` : '')
+              + ' ¿Seguimos?';
+            if (!(await confirmBox(msg, 'Sí, enviar', out > 0))) return;
             await post('/api/campaigns', {
-              name: fd.name.value, body: fd.body.value, filter: filter(), template: readTemplate(form),
-              scheduled_at: later ? new Date(fd.at.value).toISOString() : undefined,
+              name: fd.name.value, body: fd.body.value, filter: f, template: readTemplate(form),
+              scheduled_at: isLater ? when.toISOString() : undefined,
             });
-            toast(later ? 'Campaña programada' : 'Campaña en marcha', 'good');
+            done = true;
+            toast(isLater ? 'Campaña programada' : 'Campaña en marcha', 'good');
             m.close();
             load();
-          } catch (err) { fail(err); go.disabled = false; }
+          } catch (err) { fail(err); } finally {
+            busy = false;
+            form.inert = false;
+            if (!done) sync();
+          }
         };
       },
     });

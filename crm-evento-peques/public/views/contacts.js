@@ -1,12 +1,12 @@
 import {
   state, html, raw, mount, get, post, put, del, qs, icon, toast, fail, modal, confirmBox, download,
-  statusInfo, statusOptions, waLink, debounce, initials,
+  statusInfo, statusOptions, waLink, debounce, initials, cloud,
 } from '../lib.js';
 
 const PAGE = 100;
 
 export async function render(view) {
-  const f = { search: '', status: '', tag: '' };
+  const f = { search: '', status: '', tag: '', optout: '' };
   let contacts = [];
   let tags = [];
   let shown = PAGE;
@@ -14,12 +14,13 @@ export async function render(view) {
 
   mount(view, html`
     <div class="page-head"><div><h1>Contactos</h1><p>Cargá a las familias, seguí su estado y escribiles por WhatsApp.</p></div>
-      <div class="row"><a class="btn" id="export" href="#">${icon('download')} Exportar</a><button class="btn" id="import">${icon('upload')} Importar</button><button class="btn primary" id="new">${icon('plus')} Nuevo contacto</button></div></div>
+      <div class="row"><a class="btn" id="export" href="#" title="Descarga en CSV los contactos que se ven con los filtros actuales">${icon('download')} Exportar</a><button class="btn" id="import">${icon('upload')} Importar</button><button class="btn primary" id="new">${icon('plus')} Nuevo contacto</button></div></div>
     <div class="card flush">
       <div class="toolbar">
         <input type="search" id="q" placeholder="Buscar nombre, teléfono o peque" aria-label="Buscar">
         <select id="fs" aria-label="Filtrar por estado"></select>
         <select id="ft" aria-label="Filtrar por etiqueta"></select>
+        <select id="fo" aria-label="Filtrar por baja"><option value="">Con y sin baja</option><option value="only">Dados de baja</option><option value="exclude">Sin baja</option></select>
         <span class="muted small grow right" id="count"></span>
       </div>
       <div id="bulk"></div>
@@ -44,7 +45,7 @@ export async function render(view) {
     $('#count').textContent = `${contacts.length} contacto${contacts.length === 1 ? '' : 's'}`;
     drawBulk();
     if (!contacts.length) {
-      const filtered = f.search || f.status || f.tag;
+      const filtered = f.search || f.status || f.tag || f.optout;
       mount($('#list'), html`<div class="empty"><div class="big">🎈</div><h3>${filtered ? 'No hay contactos con ese filtro' : 'Todavía no hay contactos'}</h3>
         <p>${filtered ? 'Probá con otra búsqueda.' : 'Importá tu lista desde Excel o agregá el primero a mano.'}</p>
         ${!filtered && html`<button class="btn primary" data-act="import">${icon('upload')} Importar contactos</button>`}</div>`);
@@ -74,6 +75,7 @@ export async function render(view) {
       <button class="btn sm" data-act="tag">Etiquetar</button>
       <button class="btn sm primary" data-act="campaign">${icon('send')} Enviarles un mensaje</button>
       <button class="btn sm" data-act="optout">Dar de baja</button>
+      <button class="btn sm" data-act="optin">Volver a habilitar</button>
       <button class="btn sm danger" data-act="delete">Eliminar</button>
       <button class="btn sm ghost" data-act="clear">Quitar selección</button></div>` : '');
   }
@@ -95,7 +97,7 @@ export async function render(view) {
         <label class="f"><span>Etiquetas <small>(separadas por coma)</small></span><input type="text" name="tags" value="${(c?.tags || []).join(', ')}" placeholder="vip, sala-1" list="taglist"></label>
         <datalist id="taglist">${tags.map((t) => html`<option value="${t.tag}">`)}</datalist>
         <label class="f"><span>Notas</span><textarea name="notes">${c?.notes || ''}</textarea></label>
-        ${!isNew && html`<label class="check"><input type="checkbox" name="opted_out" ${c.opted_out ? raw('checked') : ''}><span>Pidió la baja (no recibe más mensajes)</span></label>`}
+        ${!isNew && html`<label class="check"><input type="checkbox" name="opted_out" ${c.opted_out ? raw('checked') : ''}><span>Pidió la baja (no recibe más mensajes)<small class="muted"> · Si la familia escribe BAJA, el CRM la marca solo. Al destildarla vuelve a recibir mensajes: hacelo solo si ella lo pidió.</small></span></label>`}
       </form>`,
       foot: html`${!isNew && html`<button class="btn danger left" type="button" id="del">${icon('trash')} Eliminar</button>`}<button class="btn" data-close type="button">Cancelar</button><button class="btn primary" type="submit" form="cf">Guardar</button>`,
       onMount: (el) => {
@@ -110,11 +112,13 @@ export async function render(view) {
             if (fd.opted_out.checked !== wasOptedOut) body.opted_out = fd.opted_out.checked;
             if (!Object.keys(body).length) return m.close();
           }
+          if (body.opted_out === false && !(await confirmBox(`¿Volver a habilitar a ${c.name}? Pidió la baja y volverá a recibir mensajes y campañas. Hacelo solo si ella misma pidió volver a recibirlos.`, 'Volver a habilitar', true))) return;
           const btn = el.querySelector('button[type=submit]');
           btn.disabled = true;
           try {
-            if (isNew) await post('/api/contacts', body); else await put(`/api/contacts/${c.id}`, body);
-            toast(isNew ? 'Contacto agregado' : 'Cambios guardados', 'good');
+            const saved = isNew ? await post('/api/contacts', body) : await put(`/api/contacts/${c.id}`, body);
+            if (isNew && saved.opted_out) toast('Contacto agregado. Ese teléfono había pedido la baja: queda dado de baja.', 'good');
+            else toast(isNew ? 'Contacto agregado' : 'Cambios guardados', 'good');
             m.close();
             load();
           } catch (err) { fail(err); btn.disabled = false; }
@@ -229,13 +233,14 @@ export async function render(view) {
   }
 
   async function bulk(action, value) {
-    try { const r = await post('/api/contacts/bulk', { ids: [...selected], action, value }); toast(`${r.affected} contactos actualizados`, 'good'); return true; } catch (err) { fail(err); return false; }
+    try { const r = await post('/api/contacts/bulk', { ids: [...selected], action, value }); toast(`${r.affected} contacto${r.affected === 1 ? ' actualizado' : 's actualizados'}`, 'good'); return true; } catch (err) { fail(err); return false; }
   }
 
   // ---- eventos ----
   $('#q').addEventListener('input', debounce((e) => { f.search = e.target.value; shown = PAGE; load(); }));
   $('#fs').addEventListener('change', (e) => { f.status = e.target.value; shown = PAGE; load(); });
   $('#ft').addEventListener('change', (e) => { f.tag = e.target.value; shown = PAGE; load(); });
+  $('#fo').addEventListener('change', (e) => { f.optout = e.target.value; shown = PAGE; load(); });
   $('#export').onclick = async (e) => {
     e.preventDefault();
     try { await download(`/api/contacts/export.csv?${qs(f)}`, 'contactos.csv'); } catch (err) { fail(err); }
@@ -248,8 +253,13 @@ export async function render(view) {
     if (t.id === 'all') { contacts.forEach((c) => (t.checked ? selected.add(c.id) : selected.delete(c.id))); draw(); }
     else if (t.dataset.sel) { const id = Number(t.dataset.sel); if (t.checked) selected.add(id); else selected.delete(id); drawBulk(); }
     else if (t.dataset.status) {
-      try { await put(`/api/contacts/${t.dataset.status}`, { status: t.value }); t.style.setProperty('--c', statusInfo(t.value).color); toast('Estado actualizado', 'good'); contacts.find((c) => c.id === Number(t.dataset.status)).status = t.value; }
-      catch (err) { fail(err); load(); }
+      try {
+        await put(`/api/contacts/${t.dataset.status}`, { status: t.value });
+        t.style.setProperty('--c', statusInfo(t.value).color);
+        toast('Estado actualizado', 'good');
+        const row = contacts.find((c) => c.id === Number(t.dataset.status));
+        if (row) row.status = t.value;
+      } catch (err) { fail(err); load(); }
     } else if (t.id === 'bulk-status' && t.value) { if (await bulk('status', t.value)) { selected.clear(); load(); } }
   });
   view.addEventListener('click', async (e) => {
@@ -267,7 +277,8 @@ export async function render(view) {
       case 'clear': selected.clear(); draw(); break;
       case 'tag': tagModal(ids); break;
       case 'campaign': sessionStorage.setItem('crm:campaign_ids', JSON.stringify(ids)); location.hash = '#/campanas'; break;
-      case 'optout': if (await confirmBox(`¿Dar de baja a ${ids.length} contacto(s)? Dejarán de recibir mensajes.`, 'Dar de baja', true) && await bulk('optout')) { selected.clear(); load(); } break;
+      case 'optout': if (await confirmBox(`¿Dar de baja a ${ids.length} contacto(s)? Dejarán de recibir mensajes y campañas.${cloud ? ' Quedan en la lista de bajas: siguen sin recibir aunque los borres o vuelvas a importarlos.' : ''}`, 'Dar de baja', true) && await bulk('optout')) { selected.clear(); load(); } break;
+      case 'optin': if (await confirmBox(`¿Volver a habilitar a ${ids.length} contacto(s)? Volverán a recibir mensajes y campañas. Hacelo solo con quienes pidieron volver a recibirlos.`, 'Volver a habilitar', true) && await bulk('optin')) { selected.clear(); load(); } break;
       case 'delete': if (await confirmBox(`¿Eliminar ${ids.length} contacto(s) y sus conversaciones? No se puede deshacer.`, 'Eliminar', true) && await bulk('delete')) { selected.clear(); load(); } break;
       default:
     }
