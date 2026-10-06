@@ -546,3 +546,67 @@ test('ajustes: fechas imposibles se rechazan, y un recordatorio «0 minutos ante
   assert.equal((await api('POST', '/automations', { name: 'Ya', trigger: 'before_event', config: { offset_minutes: 0 }, body: 'x' })).status, 400);
   assert.equal((await api('POST', '/automations', { name: 'Ya', trigger: 'before_event', config: { offset_minutes: 5 }, body: 'x' })).status, 200);
 });
+
+test('landing: la inscripción pública crea el contacto con su consentimiento, sin sesión y con CORS', async () => {
+  await reset();
+  const ip = { 'cf-connecting-ip': '198.51.100.20', origin: 'https://peques-emprende-mdp.netlify.app' };
+  const form = { name: ' Laura   Gómez ', phone: '223 456-7890', email: 'laura@mail.com', child_name: 'Juana', child_age: '5', kids_count: 2, notes: 'Alergia al maní', consent: true };
+  const res = await api('POST', '/public/signup', form, { auth: false, headers: ip });
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.json, { ok: true });
+  assert.equal(res.headers.get('access-control-allow-origin'), '*');
+  const c = await db.one('select * from contacts');
+  assert.equal(c.name, 'Laura Gómez');
+  assert.equal(c.phone, '5492234567890');
+  assert.equal(c.status, 'interesado');
+  assert.equal(c.tags, ',landing,');
+  assert.equal(c.source, 'landing');
+  assert.equal(c.kids_count, 2);
+  assert.ok(c.consent_at);
+  assert.match(c.consent_note, /landing/);
+
+  // quien ya está inscripto ve «¡Listo!» pero no se pisa nada
+  const again = await api('POST', '/public/signup', { ...form, name: 'Otra Persona', phone: '+54 9 223 456 7890' }, { auth: false, headers: ip });
+  assert.deepEqual(again.json, { ok: true });
+  assert.equal(await db.val('select count(*)::int from contacts'), 1);
+  assert.equal(await db.val('select name from contacts'), 'Laura Gómez');
+});
+
+test('landing: validaciones, campo trampa, bajas y tope de inscripciones', async () => {
+  await reset();
+  const h = (n) => ({ 'cf-connecting-ip': `198.51.100.${n}` });
+  const post = (b, n = 30) => api('POST', '/public/signup', b, { auth: false, headers: h(n) });
+  const ok = { name: 'Beto Paz', phone: '2235550002', consent: true };
+  assert.equal((await post({ ...ok, consent: false })).status, 400, 'sin aceptar no se inscribe');
+  assert.equal((await post({ ...ok, consent: 'true' })).status, 400);
+  assert.equal((await post({ ...ok, name: 'A' })).status, 400);
+  assert.equal((await post({ ...ok, phone: '12' })).status, 400);
+  assert.equal((await post({ ...ok, email: 'no-es-un-mail' })).status, 400);
+  assert.equal((await api('POST', '/public/signup', undefined, { auth: false, rawBody: 'x'.repeat(20000), headers: h(30) })).status, 413, 'cuerpo enorme');
+  assert.equal(await db.val('select count(*)::int from contacts'), 0);
+
+  const bot = await post({ ...ok, website: 'http://spam.example' });
+  assert.deepEqual(bot.json, { ok: true });
+  assert.equal(await db.val('select count(*)::int from contacts'), 0, 'el campo trampa descarta al bot en silencio');
+
+  await db.query("insert into suppressions (phone_key) values ('2235550003')");
+  await post({ name: 'Baja Previa', phone: '2235550003', consent: true });
+  assert.equal(await db.val("select opted_out from contacts where phone_key = '2235550003'"), true, 'quien pidió la baja no se re-suscribe por el formulario');
+
+  let last;
+  for (let i = 0; i < 10; i++) last = await post({ name: 'Familia ' + i, phone: `22355599${String(10 + i)}`, consent: true }, 77);
+  assert.equal(last.status, 429, 'tope por IP');
+  assert.equal((await post({ name: 'Otra IP', phone: '2235550077', consent: true }, 78)).status, 200, 'otra IP no se ve afectada');
+});
+
+test('landing: el conector de Google Forms entra con su clave sin toparse con el límite por IP', async () => {
+  await reset();
+  await db.query("insert into settings (key, value) values ('signup_key', 'clave-del-conector') on conflict (key) do update set value = excluded.value");
+  const ip = { 'cf-connecting-ip': '203.0.113.200' };
+  const post = (b) => api('POST', '/public/signup', b, { auth: false, headers: ip });
+  for (let i = 0; i < 12; i++) assert.equal((await post({ name: 'Familia ' + i, phone: `22355588${String(10 + i)}`, consent: true, key: 'clave-del-conector' })).status, 200);
+  assert.equal(await db.val("select count(*)::int from contacts where source = 'google-forms'"), 12, 'pasan más de 8 desde la misma IP');
+  assert.equal((await post({ name: 'Sin clave', phone: '2235558899', consent: true, key: 'otra' })).status, 200, 'una clave incorrecta se trata como público');
+  assert.equal(await db.val("select count(*)::int from contacts where source = 'landing'"), 1);
+  await db.query("delete from settings where key = 'signup_key'");
+});

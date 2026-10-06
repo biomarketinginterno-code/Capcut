@@ -8,6 +8,7 @@ import * as inbound from './inbound.ts';
 import * as queue from './queue.ts';
 import * as wa from './whatsapp.ts';
 import * as auth from './auth.ts';
+import { signup } from './signup.ts';
 import { VARIABLES, cleanTemplate } from './template.ts';
 import { normalizePhone } from './phone.ts';
 import { localToDate } from './time.ts';
@@ -278,6 +279,13 @@ route('POST', '/webhook/whatsapp', async ({ raw: bytes, req, defer }) => {
   if (result.errors) throw new HttpError(500, 'No se pudo procesar el mensaje; Meta lo reenviará');
   return raw(200, { 'Content-Type': 'text/plain' }, 'EVENT_RECEIVED');
 }, { public: true, rawBody: true });
+
+// ---- inscripción desde la landing page (pública: sin sesión, con límites y campo trampa) ----
+route('POST', '/public/signup', async ({ body, ip, defer }) => {
+  const c = await signup(body, ip);
+  if (c) defer(queue.tick());
+  return { ok: true };
+}, { public: true, maxBody: 16 * 1024 });
 
 // ---- cron: lo llama pg_cron cada minuto con una llave compartida ----
 route('POST', '/internal/tick', async ({ req }) => {

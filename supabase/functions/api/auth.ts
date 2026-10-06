@@ -39,14 +39,14 @@ async function passwordOk(password) {
  * recibe un número distinto y solo las primeras MAX_ATTEMPTS llegan a probar la contraseña. La ventana es fija
  * (no se extiende mientras está bloqueado) y se vacía al entrar bien.
  */
-async function countAttempt(bucket) {
+export async function countAttempt(bucket, windowSec = LOCK_MS / 1000) {
   return db.val(
     `insert into login_attempts (ip, n, until_at) values ($1, 1, now() + ($2::int * interval '1 second'))
      on conflict (ip) do update set
        n = case when login_attempts.until_at <= now() then 1 else login_attempts.n + 1 end,
        until_at = case when login_attempts.until_at <= now() then excluded.until_at else login_attempts.until_at end
      returning n`,
-    [bucket, LOCK_MS / 1000],
+    [bucket, windowSec],
   );
 }
 

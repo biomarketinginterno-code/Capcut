@@ -79,6 +79,15 @@ Seguí las secciones **2.1, 2.3, 2.4 y 2.5** más abajo, con estas diferencias:
 - Si falta la fecha, la hora o el lugar del evento en **Ajustes**, los mensajes que los usan **esperan** (no salen con huecos)
   y se envían solos al completarlos.
 
+### Conectar el formulario de la landing (Google Forms → CRM)
+
+Cada inscripción del Google Form puede crear sola el contacto en el CRM (con su consentimiento registrado y la etiqueta `google-forms`).
+Hay que pegar el script `conectores/google-forms.gs` en la planilla de respuestas del formulario (instrucciones en el encabezado del
+archivo) y reemplazar `PEGAR_CLAVE_AQUI` por la clave `signup_key` de la tabla `settings` (se genera con
+`insert into settings (key, value) values ('signup_key', encode(extensions.gen_random_bytes(18), 'hex'));`).
+La API recibe las inscripciones en `POST /public/signup` (pública, con campo trampa y tope de inscripciones por hora); el mismo endpoint
+sirve para un formulario propio en la landing (campos: `name`, `phone`, `email`, `child_name`, `child_age`, `kids_count`, `notes`, `consent: true`).
+
 ### Instalarlo en OTRO proyecto de Supabase (técnico)
 
 1. Creá el proyecto en <https://supabase.com> (región cercana, ej. São Paulo).

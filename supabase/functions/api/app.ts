@@ -65,7 +65,7 @@ export async function handle(req) {
 
     let bytes = new Uint8Array(0);
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-      const limit = r.public ? MAX_PUBLIC_BODY : MAX_BODY;
+      const limit = r.maxBody ?? (r.public ? MAX_PUBLIC_BODY : MAX_BODY);
       if (Number(req.headers.get('content-length')) > limit) throw new HttpError(413, 'Archivo demasiado grande'); // sin leerlo
       bytes = new Uint8Array(await req.arrayBuffer());
       if (bytes.length > limit) throw new HttpError(413, 'Archivo demasiado grande');
