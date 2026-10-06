@@ -171,3 +171,4 @@ dialog::backdrop { background: rgba(20, 18, 42, .55); backdrop-filter: blur(2px)
   table.rows td.sel { grid-area: sel; } table.rows td.name { grid-area: name; min-width: 0; } table.rows td.st { grid-area: st; } table.rows td.act { grid-area: act; text-align: left; }
   table.rows td.kid { grid-area: kid; display: block; color: var(--muted); font-size: .9rem; } table.rows td.tg { grid-area: tg; display: block; } table.rows td.tg:empty { display: none; }
 }
+.toast.in-dialog { position: fixed; left: 1rem; right: 1rem; bottom: 1rem; z-index: 1; }

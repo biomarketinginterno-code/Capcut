@@ -40,8 +40,8 @@ export async function render(view) {
         ${cd && html`<div class="count">${cd.n}<small>${cd.l}</small></div>`}</div>
 
       ${wa.mode !== 'cloud' && html`<div class="banner warn"><div><b>WhatsApp en modo simulación</b>Todo funciona, pero los mensajes no salen de verdad. ${state.meta.credentials_editable ? html`Para conectar tu número cargá tus datos de WhatsApp en <a href="#/ajustes">Ajustes</a>.` : 'Para conectar tu número seguí la guía del README y cargá las variables WHATSAPP_*.'}</div></div>`}
-      ${s.send_alert && html`<div class="banner bad"><div><b>Hubo un problema con los envíos</b>${s.send_alert.message} (${fmtDateTime(s.send_alert.at)})</div></div>`}
-      ${stalled && html`<div class="banner warn"><div><b>Los envíos programados no están corriendo</b>${tick ? `El último ciclo fue el ${fmtDateTime(tick)}.` : 'Todavía no se registró ningún ciclo.'} Los mensajes en cola no van a salir hasta que se reactive el cron (mirá el README).</div></div>`}
+      ${s.send_alert && html`<div class="banner bad"><div><b>WhatsApp está rechazando los envíos</b>${s.send_alert.message}${s.send_alert.at ? ` (${fmtDateTime(s.send_alert.at)})` : ''}. Los mensajes quedan en espera y salen solos cuando se arregle; revisá <a href="#/ajustes">Ajustes → WhatsApp</a>.</div></div>`}
+      ${stalled && html`<div class="banner warn"><div><b>El envío automático no está corriendo</b>Los recordatorios y reintentos no salen. Si es un proyecto gratuito de Supabase, puede estar pausado: entrá al panel de Supabase y tocá Resume project.</div></div>`}
       ${wa.mode === 'cloud' && wa.issues?.length ? html`<div class="banner bad"><div><b>WhatsApp conectado, pero incompleto</b>${wa.issues.join(' ')}</div></div>` : ''}
 
       <div class="grid kpis">

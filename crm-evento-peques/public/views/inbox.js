@@ -55,7 +55,7 @@ export async function render(view, { pollUnread }) {
       return mount(box, html`<div class="banner bad"><div><b>${c.name} pidió no recibir mensajes</b>Podés volver a habilitarla desde Contactos → Editar.</div></div>`);
     }
     mount(box, html`<form id="send" class="stack-sm">
-      ${!thread.window_open && html`<div class="banner warn"><div><b>Pasaron más de 24 h desde su última respuesta</b>WhatsApp solo permite escribirle con una <b>plantilla aprobada</b> (el texto libre no se envía). Completá la plantilla o esperá a que responda.</div></div>${templateFields(null, true)}`}
+      ${!thread.window_open && html`<div class="banner warn"><div><b>Pasaron más de 24 h desde su última respuesta</b>WhatsApp solo permite escribirle con una <b>plantilla aprobada</b> (el texto libre no se envía). Completá la plantilla o esperá a que responda.</div></div>${templateFields(null, matchMedia('(min-width: 861px)').matches)}`}
       <div class="line">${thread.window_open && html`<textarea name="text" rows="1" placeholder="Escribí un mensaje…" aria-label="Mensaje para ${c.name}"></textarea>`}
         <button class="btn primary" type="submit" ${sending ? raw('disabled') : ''}>${icon('send')} Enviar</button></div>
       ${simulated && html`<div class="row small muted"><span>🧪 Simular respuesta de ${c.name}:</span><input type="text" id="sim" style="max-width:220px" placeholder='ej: SI'><button class="btn sm" type="button" id="simgo">Simular</button></div>`}

@@ -65,7 +65,7 @@ export async function api(method, path, body) {
     window.dispatchEvent(new Event('crm:unauthorized'));
     throw apiError('Tu sesión venció. Volvé a entrar.', 401);
   }
-  if (!res.ok) throw apiError(data?.error || STATUS_TEXT[res.status] || `Error ${res.status}`, res.status, data || {});
+  if (!res.ok) throw apiError(data?.error || STATUS_TEXT[res.status] || data?.message || `Error ${res.status}`, res.status, data || {});
   if (data === null) throw apiError('La respuesta del servidor no es la esperada. Revisá la dirección de la API.');
   return data;
 }
@@ -97,11 +97,13 @@ export function toast(msg, type = '') {
   el.className = `toast ${type}`;
   el.textContent = msg;
   const box = document.getElementById('toasts');
-  box.append(el);
+  const dlg = [...document.querySelectorAll('dialog[open]')].pop();
+  if (!box.showPopover && dlg) { dlg.append(el); el.classList.add('in-dialog'); } // sin popover: dentro del modal abierto, que tapa todo lo demás
+  else box.append(el);
   // #toasts es un popover: vive en la capa superior del navegador, igual que los <dialog> modales; hay que volver a
   // mostrarlo para que quede por encima de un modal abierto después
   if (box.showPopover) {
-    if (box.matches(':popover-open') && document.querySelector('dialog[open]')) box.hidePopover();
+    if (box.matches(':popover-open') && dlg) box.hidePopover();
     box.showPopover();
   }
   setTimeout(() => el.remove(), type === 'bad' ? 6000 : 3200);
@@ -116,7 +118,11 @@ export function modal({ title, body, foot = '', wide = false, onMount }) {
     <div class="dlg-body">${body}</div>${foot ? html`<div class="dlg-foot">${foot}</div>` : ''}`);
   document.body.append(dlg);
   const close = () => { if (dlg.open) dlg.close(); };
-  dlg.addEventListener('close', () => dlg.remove());
+  dlg.addEventListener('close', () => {
+    const box = document.getElementById('toasts');
+    for (const t of dlg.querySelectorAll('.toast')) { t.classList.remove('in-dialog'); box.append(t); }
+    dlg.remove();
+  });
   dlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) close(); });
   dlg.showModal();
   onMount?.(dlg, close);

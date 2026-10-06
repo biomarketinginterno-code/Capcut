@@ -524,8 +524,7 @@ test('contacto: un estado inválido no guarda nada, y editar sin mandar opted_ou
 
 test('exportación: no se corta en 5000 contactos', async () => {
   await reset();
-  const values = Array.from({ length: 5300 }, (_, i) => `('C${i}', '549223${String(6000000 + i)}', '223${String(6000000 + i)}')`).join(',');
-  await db.query(`insert into contacts (name, phone, phone_key) values ${values}`);
+  await db.query("insert into contacts (name, phone, phone_key) select 'C' || i, '549223' || (6000000 + i), '223' || (6000000 + i) from generate_series(0, 5299) i");
   const csv = await api('GET', '/contacts/export.csv');
   assert.equal(csv.text.trim().split('\n').length, 5301);
 });

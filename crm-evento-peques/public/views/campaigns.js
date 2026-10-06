@@ -62,8 +62,12 @@ export async function render(view) {
 
   async function load() { list = await get('/api/campaigns'); draw(); }
 
+  let opening = false;
   async function newCampaign(preIds = null) {
-    const tags = await get('/api/tags');
+    if (opening) return;
+    opening = true;
+    let tags;
+    try { tags = await get('/api/tags'); } finally { opening = false; }
     const m = modal({
       title: 'Nueva campaña', wide: true,
       body: html`<form id="cf" class="stack" autocomplete="off">

@@ -2,6 +2,7 @@ import { state, html, mount, get, put, post, toast, fail, icon, setToken, confir
 
 export async function render(view, ctx) {
   const { refreshMeta } = ctx;
+  await refreshMeta().catch(() => {}); // los avisos de WhatsApp (envíos en pausa, etc.) cambian solos: se muestran los de ahora
   const meta = state.meta;
   const s = meta.settings;
   const wa = meta.whatsapp;
@@ -10,6 +11,8 @@ export async function render(view, ctx) {
   const webhookUrl = meta.webhook_url || `${location.origin}${meta.webhook_path}`;
   const zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [s.timezone];
   const bannerClass = wa.mode === 'cloud' && wa.ready ? 'good' : wa.mode === 'cloud' ? 'bad' : 'warn';
+  const paused = (wa.issues || []).some((i) => /en pausa/.test(i)); // la cola frena todo cuando WhatsApp rechaza la cuenta (token vencido, etc.)
+  const waTitle = wa.mode !== 'cloud' ? 'Modo simulación' : wa.ready ? 'Conectado a WhatsApp Cloud API' : 'WhatsApp conectado, pero hay algo para revisar';
 
   mount(view, html`
     <div class="page-head"><div><h1>Ajustes</h1><p>Datos del evento (se usan en los mensajes), conexión con WhatsApp y tu cuenta.</p></div></div>
@@ -28,7 +31,7 @@ export async function render(view, ctx) {
       </form>
 
       <div class="card stack"><h2>WhatsApp</h2>
-        <div class="banner ${bannerClass}"><div><b>${wa.mode === 'cloud' ? 'Conectado a WhatsApp Cloud API' : 'Modo simulación'}</b>${wa.message}${(wa.issues || []).map((i) => html`<div>• ${i}</div>`)}</div></div>
+        <div class="banner ${bannerClass}"><div><b>${waTitle}</b>${paused ? '' : wa.message}${(wa.issues || []).map((i) => html`<div>• ${i}</div>`)}${paused && html`<div class="small">Los mensajes quedan en espera y se reintentan solos cada 10 minutos; el aviso se borra cuando WhatsApp vuelva a aceptar envíos.${editable ? ' Si el problema es el token, cargá uno nuevo acá abajo.' : ''}</div>`}</div></div>
 
         ${editable && html`<form id="wcf" class="stack-sm" autocomplete="off">
           <h3>Datos de tu cuenta de WhatsApp (Meta)</h3>
@@ -59,60 +62,56 @@ export async function render(view, ctx) {
         <div><button class="btn" type="submit">Cambiar contraseña</button></div></form>`}
     </div>`);
 
-  const again = () => render(view, ctx);
+  const again = () => render(view, ctx); // vuelve a pedir los datos y redibuja
 
-  view.querySelector('#evf').onsubmit = async (e) => {
+  // Un formulario no se envía dos veces: mientras hay uno en vuelo se ignoran otros envíos (doble clic, Enter repetido)
+  // y los botones quedan apagados. Si falla se reactivan; el error se avisa acá.
+  const once = (fn) => async (e) => {
     e.preventDefault();
-    const fd = Object.fromEntries(new FormData(e.target));
-    try {
-      await put('/api/settings', fd);
-      await refreshMeta();
-      toast('Ajustes guardados', 'good');
-    } catch (err) { fail(err); }
+    const form = e.target;
+    if (form.dataset.busy) return;
+    form.dataset.busy = '1';
+    const btns = [...form.querySelectorAll('button[type=submit]')];
+    btns.forEach((b) => { b.disabled = true; });
+    try { await fn(form.elements, form); } catch (err) { fail(err); } finally { delete form.dataset.busy; btns.forEach((b) => { b.disabled = false; }); }
   };
 
+  view.querySelector('#evf').onsubmit = once(async (f, form) => {
+    await put('/api/settings', Object.fromEntries(new FormData(form)));
+    await refreshMeta();
+    toast('Ajustes guardados', 'good');
+  });
+
   view.onclick = async (e) => { // onclick (no addEventListener): al redibujar la pantalla se reemplaza, no se acumula
-    const b = e.target.closest('[data-copy]');
-    if (!b) return;
+    const b = e.target.closest('[data-copy],#wclear');
+    if (!b || b.disabled) return;
+    if (b.id === 'wclear') {
+      if (!(await confirmBox('¿Desconectar WhatsApp? Se borran el token, el ID del número y el App Secret, y el CRM vuelve al modo simulación.', 'Desconectar', true))) return;
+      b.disabled = true;
+      try { await put('/api/whatsapp/config', { clear: true }); toast('WhatsApp desconectado'); await again(); } catch (err) { fail(err); b.disabled = false; }
+      return;
+    }
     const input = view.querySelector(`#${b.dataset.copy}`);
     try { await navigator.clipboard.writeText(input.value); toast('Copiado', 'good'); } catch { input.select(); toast('Copialo con Ctrl+C'); }
   };
 
-  view.querySelector('#tf').onsubmit = async (e) => {
-    e.preventDefault();
-    const btn = e.target.querySelector('button');
-    btn.disabled = true;
-    try { const r = await post('/api/whatsapp/test', { phone: e.target.phone.value }); toast(r.message, 'good'); } catch (err) { fail(err); }
-    btn.disabled = false;
-  };
+  view.querySelector('#tf').onsubmit = once(async (f) => {
+    const r = await post('/api/whatsapp/test', { phone: f.phone.value });
+    toast(r.message, 'good');
+  });
 
   if (editable) {
-    view.querySelector('#wcf').onsubmit = async (e) => {
-      e.preventDefault();
-      const f = e.target.elements;
-      const btn = e.target.querySelector('button[type=submit]');
-      btn.disabled = true;
-      try {
-        await put('/api/whatsapp/config', { token: f.token.value, phone_number_id: f.phone_number_id.value, app_secret: f.app_secret.value });
-        await refreshMeta();
-        toast('Datos de WhatsApp guardados', 'good');
-        again();
-      } catch (err) { fail(err); btn.disabled = false; }
-    };
-    view.querySelector('#wclear')?.addEventListener('click', async () => {
-      if (!(await confirmBox('¿Desconectar WhatsApp? Se borran el token, el ID del número y el App Secret, y el CRM vuelve al modo simulación.', 'Desconectar', true))) return;
-      try { await put('/api/whatsapp/config', { clear: true }); await refreshMeta(); toast('WhatsApp desconectado'); again(); } catch (err) { fail(err); }
+    view.querySelector('#wcf').onsubmit = once(async (f) => {
+      await put('/api/whatsapp/config', { token: f.token.value, phone_number_id: f.phone_number_id.value, app_secret: f.app_secret.value });
+      toast('Datos de WhatsApp guardados', 'good');
+      await again();
     });
-    view.querySelector('#pwf').onsubmit = async (e) => {
-      e.preventDefault();
-      const f = e.target.elements;
+    view.querySelector('#pwf').onsubmit = once(async (f, form) => {
       if (f.next.value !== f.again.value) return toast('Las contraseñas nuevas no coinciden', 'bad');
-      try {
-        const r = await put('/api/password', { current: f.current.value, next: f.next.value });
-        if (r.token) setToken(r.token); // la sesión anterior quedó invalidada: seguimos con la nueva
-        e.target.reset();
-        toast('Contraseña cambiada', 'good');
-      } catch (err) { fail(err); }
-    };
+      const r = await put('/api/password', { current: f.current.value, next: f.next.value });
+      if (r.token) setToken(r.token); // la sesión anterior quedó invalidada: seguimos con la nueva
+      form.reset();
+      toast('Contraseña cambiada', 'good');
+    });
   }
 }

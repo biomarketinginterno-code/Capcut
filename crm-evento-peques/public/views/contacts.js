@@ -262,11 +262,14 @@ export async function render(view) {
       } catch (err) { fail(err); load(); }
     } else if (t.id === 'bulk-status' && t.value) { if (await bulk('status', t.value)) { selected.clear(); load(); } }
   });
+  let opening = false;
   view.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-act],[data-edit],[data-chat]');
     if (!b) return;
     if (b.dataset.edit) { // se pide el contacto de nuevo: la lista puede estar vieja (una baja o un cambio de estado llegan por WhatsApp)
-      try { contactModal(await get(`/api/contacts/${b.dataset.edit}`)); } catch (err) { fail(err); }
+      if (opening) return;
+      opening = true;
+      try { contactModal(await get(`/api/contacts/${b.dataset.edit}`)); } catch (err) { fail(err); } finally { opening = false; }
       return;
     }
     if (b.dataset.chat) { sessionStorage.setItem('crm:open_chat', b.dataset.chat); location.hash = '#/conversaciones'; return; }

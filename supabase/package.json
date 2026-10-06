@@ -4,8 +4,8 @@
   "type": "module",
   "description": "Backend del CRM en Supabase (Postgres + Edge Function). Los tests corren en Node con PGlite (Postgres en memoria).",
   "scripts": {
-    "test": "node --test --disable-warning=ExperimentalWarning tests/*.test.ts",
-    "test:pg": "TEST_DRIVER=postgres node --test --disable-warning=ExperimentalWarning tests/*.test.ts",
+    "test": "node --test --test-timeout=120000 --disable-warning=ExperimentalWarning tests/*.test.ts",
+    "test:pg": "TEST_DRIVER=postgres node --test --test-timeout=120000 --disable-warning=ExperimentalWarning tests/*.test.ts",
     "dev": "node --disable-warning=ExperimentalWarning dev-server.ts"
   },
   "devDependencies": {
