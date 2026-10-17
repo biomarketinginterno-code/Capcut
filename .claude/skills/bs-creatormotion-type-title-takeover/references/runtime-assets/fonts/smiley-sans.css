@@ -1,0 +1,8 @@
+/* Smiley Sans (Deyi Hei) v2.0.1 by atelierAnchor, SIL OFL 1.1. One upright-slanted design; every weight maps to it. */
+@font-face {
+  font-family: 'Smiley Sans';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url(smiley-sans-oblique.woff2) format('woff2');
+}
